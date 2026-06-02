@@ -468,7 +468,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const _app=initializeApp({apiKey:"AIzaSyDJiUW6zjEeBV2Aag8N8Fga13SEIlAr8AM",authDomain:"shams-salon.firebaseapp.com",projectId:"shams-salon",storageBucket:"shams-salon.firebasestorage.app",messagingSenderId:"942915305459",appId:"1:942915305459:web:1f2a6c0d6afa3c2dbe1c86"});
 const _db=getFirestore(_app);
-const DB=doc(_db,"sunshave","data"); // مجموعة منفصلة خاصة بـ Sun Shave
+const DB=doc(_db,"shams","data");
 
 const ALL_SLOTS=["12:00 م","1:00 م","2:00 م","3:00 م","4:00 م","5:00 م","6:00 م","7:00 م","8:00 م","9:00 م","10:00 م","11:00 م","12:00 ص","1:00 ص","2:00 ص","3:00 ص","4:00 ص","5:00 ص","6:00 ص"];
 const SH={"12:00 م":12,"1:00 م":13,"2:00 م":14,"3:00 م":15,"4:00 م":16,"5:00 م":17,"6:00 م":18,"7:00 م":19,"8:00 م":20,"9:00 م":21,"10:00 م":22,"11:00 م":23,"12:00 ص":0,"1:00 ص":1,"2:00 ص":2,"3:00 ص":3,"4:00 ص":4,"5:00 ص":5,"6:00 ص":6};
