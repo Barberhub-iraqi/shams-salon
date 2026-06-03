@@ -775,11 +775,11 @@ function render(){
 }
 
 async function init(){
-  await loadAndRender();
+  try{await loadAndRender();}catch(e){console.error('Firebase error:',e);render();}
   updateManualSvcSelect();
   document.getElementById('loaderApp').style.display='none';
   document.getElementById('mainApp').style.display='block';
-  setInterval(async()=>{if(activeTab==='settings')return;await load();render();checkNew();updateManualSvcSelect();},60000);
+  setInterval(async()=>{if(activeTab==='settings')return;try{await load();render();checkNew();updateManualSvcSelect();}catch{}},60000);
 }
 window._init=init;
 

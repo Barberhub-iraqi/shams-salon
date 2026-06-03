@@ -578,7 +578,7 @@ function resetForm(){
 }
 
 (async()=>{
-  await load();
+  try{await load();}catch(e){console.error('Firebase error:',e);}
   document.getElementById('loader').style.display='none';
   document.getElementById('app').style.display='block';
   renderSvcs();renderDays();
