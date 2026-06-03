@@ -112,12 +112,6 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);color:
 .wait-row{margin-top:7px;}
 .wait-send-btn{width:100%;background:rgba(201,168,76,0.07);border:1px solid rgba(201,168,76,0.15);border-radius:8px;padding:9px;color:var(--gold);font-family:'Cairo',sans-serif;font-size:11px;font-weight:700;cursor:pointer;}
 
-/* CALENDAR */
-.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:12px;}
-.cal-head{text-align:center;font-size:9px;color:var(--muted);padding:3px 0;}
-.cal-cell{background:var(--card);border:1px solid var(--border2);border-radius:8px;padding:5px 3px;min-height:44px;}
-.cal-date{font-size:9px;color:var(--muted);text-align:center;margin-bottom:3px;}
-.cal-s{font-size:8px;border-radius:3px;padding:1px 3px;margin-bottom:2px;text-align:center;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;}
 .cs-free{background:rgba(46,96,48,0.1);color:#4CAF50;}
 .cs-bkd{background:rgba(201,168,76,0.1);color:var(--gold);}
 .cs-late{background:rgba(107,32,32,0.2);color:#EF5350;}
@@ -267,7 +261,7 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);color:
 
   <div class="tabs">
     <div class="tab active" onclick="switchTab('bookings')">📋 الحجوزات</div>
-    <div class="tab" onclick="switchTab('calendar')">🗓️ تقويم</div>
+
     <div class="tab" onclick="switchTab('stats')">📊 إحصائيات</div>
     <div class="tab" onclick="switchTab('archive')">🗄️ الأرشيف</div>
     <div class="tab" onclick="switchTab('waitlist')">⏳ انتظار</div>
@@ -314,15 +308,7 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);color:
     </div>
   </div>
 
-  <!-- CALENDAR -->
-  <div class="tc" id="tc-calendar">
-    <div class="sec" style="margin-top:14px">
-      <div class="sec-hdr"><div class="sec-lbl">التقويم الأسبوعي</div></div>
-      <div id="calView"></div>
-    </div>
-  </div>
-
-  <!-- STATS -->
+<!-- STATS -->
   <div class="tc" id="tc-stats">
     <div class="wkly">
       <div class="stabs">
@@ -514,7 +500,7 @@ function cleanOld(){const t=todayK();data.bookings=data.bookings.filter(b=>{if(!
 async function loadAndRender(){await load();render();}
 function syncBar(ok){const s=document.getElementById('syncStatus');const l=document.getElementById('lastSync');if(lastSync)l.textContent='آخر تحديث: '+lastSync.toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'});s.style.color=ok?'var(--green)':'#EF5350';s.textContent=ok?'متزامن ✓':'خطأ';}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3200);}
-function switchTab(t){activeTab=t;const n=['bookings','calendar','stats','archive','waitlist','settings'];document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',n[i]===t));document.querySelectorAll('.tc').forEach(el=>el.classList.remove('active'));document.getElementById('tc-'+t).classList.add('active');render();}
+function switchTab(t){activeTab=t;const n=['bookings','stats','archive','waitlist','settings'];document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',n[i]===t));document.querySelectorAll('.tc').forEach(el=>el.classList.remove('active'));document.getElementById('tc-'+t).classList.add('active');render();}
 function sstab(t){activeSTab=t;['week','month','svcs','acc'].forEach(s=>{const b=document.getElementById('stb-'+s);if(b)b.classList.toggle('active',s===t);const el=document.getElementById('sw-'+s);if(el)el.style.display=s===t?'block':'none';});renderStats();}
 function openWA(phone,msg){const c=phone.replace(/\D/g,'');const i=c.startsWith('0')?'964'+c.slice(1):c;window.open(`https://wa.me/${i}?text=${encodeURIComponent(msg)}`,'_blank');}
 
@@ -577,19 +563,6 @@ async function saveNote(id){const b=data.bookings.find(x=>x.id===id);if(!b)retur
 function sendWait(id){const b=data.bookings.find(x=>x.id===id);if(!b)return;const w=waitInfo(id);if(!w){toast('هذا الحجز مو اليوم');return;}const msg=w.before===0?`السلام عليكم ${b.name} 👋\n\n✂️ دورك الحين في Sun Shave!\n\nتفضل مباشرة ☀️`:`السلام عليكم ${b.name} 👋\n\n⏳ وقت انتظارك التقديري:\n👤 في قبلك: ${w.before} زبون\n⏱️ ~${w.mins} دقيقة\n\nSun Shave ☀️`;openWA(b.phone,msg);toast(`📲 أُرسل لـ ${b.name}`);}
 async function clearAll(){if(!confirm('مسح كل الحجوزات؟'))return;if(!confirm('تأكيد أخير!'))return;const bk=[...data.bookings];data.bookings=[];try{await save();render();toast('✅ تم المسح');}catch{data.bookings=bk;toast('❌ فشل');}}
 
-function renderCalendar(){
-  const active=data.bookings.filter(b=>!b.cancelled);const days=next7();
-  let html=`<div class="cal-grid">`;
-  days.forEach(d=>{html+=`<div class="cal-head">${DAYS[d.getDay()]}<br/><b>${d.getDate()}</b></div>`;});
-  slots().forEach(slot=>{
-    days.forEach(d=>{
-      const key=dk(d);const b=active.find(x=>x.dateKey===key&&x.slot===slot);const late=b&&isLate(b);
-      html+=`<div class="cal-cell"><div class="cal-date">${slot.replace(' م','').replace(' ص','')}</div>${b?`<div class="cal-s ${late?'cs-late':'cs-bkd'}">${b.name.split(' ')[0]}</div>`:`<div class="cal-s cs-free">✓</div>`}</div>`;
-    });
-  });
-  html+=`</div><div style="display:flex;gap:8px;font-size:10px;color:var(--muted);padding-bottom:10px"><span><span style="width:8px;height:8px;border-radius:2px;background:rgba(201,168,76,0.1);display:inline-block;margin-left:3px"></span>محجوز</span><span><span style="width:8px;height:8px;border-radius:2px;background:rgba(107,32,32,0.2);display:inline-block;margin-left:3px"></span>متأخر</span><span><span style="width:8px;height:8px;border-radius:2px;background:var(--card);display:inline-block;margin-left:3px"></span>متاح</span></div>`;
-  document.getElementById('calView').innerHTML=html;
-}
 
 function renderStats(){
   const active=data.bookings.filter(b=>!b.cancelled);
@@ -779,7 +752,6 @@ function checkNew(){const c=data.bookings.filter(b=>!b.cancelled).length;if(last
 
 function render(){
   if(activeTab==='bookings')renderBookings();
-  else if(activeTab==='calendar')renderCalendar();
   else if(activeTab==='stats')renderStats();
   else if(activeTab==='archive')renderArchive();
   else if(activeTab==='waitlist')renderWaitlist();
