@@ -416,27 +416,7 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);color:
         <div class="srow"><div class="slbl">الرمز الجديد (4 أرقام)</div><input class="sinp" id="newPin" type="password" maxlength="4" placeholder="الرمز الجديد"/></div>
         <button class="save-btn" onclick="changePIN()">🔒 تغيير الرمز</button>
       </div>
-      <div class="scard" style="border-color:rgba(46,96,48,0.3)">
-        <div class="stitle" style="color:#66BB6A">🔔 إشعارات ntfy</div>
-        <p style="font-size:11px;color:var(--muted);line-height:2;margin-bottom:10px;">
-          حمّل تطبيق <strong style="color:var(--gold)">ntfy</strong> على جوالك، ثم اكتب اسم قناتك الخاصة أدناه.<br/>
-          كل حجز جديد يوصلك إشعار فوري على التطبيق.
-        </p>
-        <div class="srow">
-          <div class="slbl">اسم القناة (Topic) — اختاره أنت بنفسك</div>
-          <div style="display:flex;gap:7px;">
-            <input class="sinp" id="ntfyTopic" placeholder="مثال: sunshave-vip-2024" style="flex:1;direction:ltr;"/>
-            <button class="save-btn" style="width:auto;padding:9px 14px;white-space:nowrap" onclick="saveNtfy()">💾 حفظ</button>
-          </div>
-        </div>
-        <button onclick="testNtfy()" style="width:100%;margin-top:4px;padding:9px;background:rgba(46,96,48,0.12);border:1px solid rgba(46,96,48,0.3);border-radius:8px;color:#66BB6A;font-family:'Cairo',sans-serif;font-size:12px;font-weight:700;cursor:pointer;">📲 إرسال إشعار تجريبي</button>
-        <div style="margin-top:10px;background:var(--card2);border-radius:8px;padding:10px 12px;font-size:10px;color:var(--muted);line-height:2;">
-          <strong style="color:var(--gold)">خطوات التفعيل:</strong><br/>
-          1️⃣ حمّل تطبيق <strong style="color:var(--text)">ntfy</strong> من App Store أو Google Play<br/>
-          2️⃣ افتح التطبيق واضغط <strong style="color:var(--text)">+</strong> وأدخل نفس اسم القناة<br/>
-          3️⃣ احفظ القناة هنا وجرّب الإشعار التجريبي
-        </div>
-      </div>
+
       <div class="scard" style="border-color:rgba(107,32,32,0.3)">
         <div class="stitle" style="color:#EF5350">⚠️ منطقة الخطر</div>
         <button onclick="clearAll()" style="width:100%;padding:11px;background:rgba(107,32,32,0.12);border:1px solid rgba(107,32,32,0.35);border-radius:8px;color:#EF5350;font-family:'Cairo',sans-serif;font-size:13px;font-weight:700;cursor:pointer;">🗑️ مسح كل الحجوزات</button>
@@ -563,7 +543,7 @@ function renderBookings(){
         <div style="flex:1;min-width:0">
           <div class="date-tag">📅 ${b.dateLabel||b.day||b.dateKey}</div>
           <div><span class="c-name">${b.name}</span>${b.reminded?'<span class="tag t-ok">✓ ذُكِّر</span>':''}${b.manual?'<span class="tag t-manual">📞 يدوي</span>':''}${late?`<span class="tag t-late">⚠️ ${mins}د</span>`:''}</div>
-          <div style="margin-top:4px"><span class="svc-chip">${b.service}</span><span class="price-chip">${fp(b.price||0)}</span></div>
+          <div style="margin-top:4px;font-size:12px;color:var(--muted)">${b.service} — ${fp(b.price||0)}</div>
         </div>
         <div class="time-chip" style="margin-right:8px">⏰ ${b.slot}</div>
       </div>
@@ -732,7 +712,22 @@ function showManual(){
   document.getElementById('mSlot').innerHTML='<option value="">اختار اليوم أولاً</option>';
 }
 function hideManual(){document.getElementById('manualForm').style.display='none';['mName','mPhone'].forEach(id=>document.getElementById(id).value='');document.getElementById('mSvc').value='';document.getElementById('mDay').value='';}
-function updateMSlots(){const dateKey=document.getElementById('mDay').value;const sel=document.getElementById('mSlot');sel.innerHTML='<option value="">اختار الساعة</option>';if(!dateKey)return;slots().forEach(s=>{const bkd=data.bookings.some(b=>b.dateKey===dateKey&&b.slot===s&&!b.cancelled);const opt=document.createElement('option');opt.value=s;opt.textContent=bkd?`${s} — محجوز`:s;if(bkd)opt.disabled=true;sel.appendChild(opt);});}
+function updateMSlots(){
+  const dateKey=document.getElementById('mDay').value;
+  const sel=document.getElementById('mSlot');
+  sel.innerHTML='<option value="">اختار الساعة</option>';
+  if(!dateKey)return;
+  // كل ساعات اليوم الـ 24
+  const allDay=["12:00 ص","1:00 ص","2:00 ص","3:00 ص","4:00 ص","5:00 ص","6:00 ص","7:00 ص","8:00 ص","9:00 ص","10:00 ص","11:00 ص","12:00 م","1:00 م","2:00 م","3:00 م","4:00 م","5:00 م","6:00 م","7:00 م","8:00 م","9:00 م","10:00 م","11:00 م"];
+  allDay.forEach(s=>{
+    const bkd=data.bookings.some(b=>b.dateKey===dateKey&&b.slot===s&&!b.cancelled);
+    const opt=document.createElement('option');
+    opt.value=s;
+    opt.textContent=bkd?`${s} — محجوز`:s;
+    if(bkd)opt.disabled=true;
+    sel.appendChild(opt);
+  });
+}
 async function saveManual(){
   const name=document.getElementById('mName').value.trim();const phone=document.getElementById('mPhone').value.trim()||'هاتف';
   const se=document.getElementById('mSvc');const svc=se.value;const price=se.options[se.selectedIndex]?.dataset?.p||0;
@@ -795,13 +790,9 @@ window.markDone=markDone;window.saveNote=saveNote;window.sendWait=sendWait;
 window.clearAll=clearAll;window.renderArchive=renderArchive;window.renderAcc=renderAcc;
 window.addExp=addExp;window.delExp=delExp;window.notifyWait=notifyWait;
 // ─── ntfy ───
-function getNtfyTopic(){return localStorage.getItem('ss_ntfy_topic')||'';}
-function saveNtfy(){
-  const v=document.getElementById('ntfyTopic').value.trim();
-  if(!v){toast('أدخل اسم القناة');return;}
-  localStorage.setItem('ss_ntfy_topic',v);
-  toast('✅ تم حفظ القناة: '+v);
-}
+const NTFY_TOPIC = 'shams-salon-iq'; // ← غيّر هذا لاسم قناتك في ntfy
+function getNtfyTopic(){return NTFY_TOPIC;}
+function saveNtfy(){}
 async function sendNtfy(title,body){
   const topic=getNtfyTopic();if(!topic)return;
   try{
@@ -813,12 +804,10 @@ async function sendNtfy(title,body){
   }catch{}
 }
 async function testNtfy(){
-  const topic=getNtfyTopic();
-  if(!topic){toast('أدخل اسم القناة أولاً');return;}
   await sendNtfy('🔔 Sun Shave — تجريبي','هذا إشعار تجريبي من لوحة التحكم ✅');
   toast('📲 تم الإرسال! تحقق من تطبيق ntfy');
 }
-function loadNtfyInput(){const t=getNtfyTopic();const el=document.getElementById('ntfyTopic');if(el&&t)el.value=t;}
+function loadNtfyInput(){}
 
 window.saveNtfy=saveNtfy;window.testNtfy=testNtfy;window.sendNtfy=sendNtfy;window.getNtfyTopic=getNtfyTopic;
 // ─────────────
