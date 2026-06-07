@@ -635,8 +635,10 @@ function renderBookings(){
 
 async function remind(id){
   const b=data.bookings.find(x=>x.id===id);if(!b)return;
+  const msg=`السلام عليكم ${b.name} 👋\n\n🔔 تذكير بموعدك في *Sun Shave*\n\n✂️ ${b.service}\n📅 ${b.dateLabel||b.day}\n⏰ ${b.slot}\n💰 ${fp(b.price)}\n\n⚠️ التأخر أكثر من 15 دقيقة يلغي حجزك.\n\nSun Shave ☀️`;
+  openWA(b.phone,msg);
   b.reminded=true;
-  try{await save();const msg=`السلام عليكم ${b.name} 👋\n\n🔔 تذكير بموعدك في *Sun Shave*\n\n✂️ ${b.service}\n📅 ${b.dateLabel||b.day}\n⏰ ${b.slot}\n💰 ${fp(b.price)}\n\n⚠️ التأخر أكثر من 15 دقيقة يلغي حجزك.\n\nSun Shave ☀️`;openWA(b.phone,msg);render();toast(`✅ تذكير لـ ${b.name}`);}
+  try{await save();render();toast(`✅ تذكير لـ ${b.name}`);}
   catch(e){b.reminded=false;toast('❌ فشل');}
 }
 async function cancelB(id){if(!confirm('إلغاء هذا الحجز؟'))return;const b=data.bookings.find(x=>x.id===id);if(!b)return;const bk=[...data.bookings];data.bookings=data.bookings.filter(x=>x.id!==id);try{await save();render();toast(`🗑️ ألغي موعد ${b.name}`);}catch{data.bookings=bk;toast('❌ فشل');}}
