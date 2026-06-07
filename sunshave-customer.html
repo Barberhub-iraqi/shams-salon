@@ -412,8 +412,10 @@ let kidsOverridePrice=0; // السعر الكلي المحسوب (عدد × سع
 let kidsOverrideDuration=0; // المدة الكلية المحسوبة
 
 // سعر ومدة طفل واحد
-
 const KIDS_DUR_PER=15; // دقيقة لكل طفل
+function getKidsSvc(){return SVCS.find(s=>s.name&&s.name.includes('طفل'))||null;}
+function getKidsSvcId(){const s=getKidsSvc();return s?s.id:null;}
+function isKidsSvc(id){const svc=SVCS.find(s=>s.id===id);return !!(svc&&svc.name&&svc.name.includes('طفل'));}
 function kidsUnitPrice(){const svc=getKidsSvc();return svc?Number(svc.price):10000;}
 
 // سعر ومدة صبي واحد
