@@ -390,57 +390,26 @@ function slotDateTime(dk,s){
   base.setHours(hFloor,mins,0,0);
   return base;
 }
-function isPast(dk,s){const t=slotDateTime(dk,s);if(!t)return false;return new Date()>=t;}
-function normPhone(p){const c=p.replace(/\D/g,'');return c.startsWith('964')?'0'+c.slice(3):c;}
-function validPhone(p){return/^07[3-9]\d{8}$/.test(normPhone(p));}
-function validName(n){return n.trim().length>=3&&/[\u0600-\u06FFa-zA-Z]/.test(n);}
-
-function getSvcDur(serviceId){
-  const svcs=db.services||SVCS;
-  const svc=svcs.find(s=>s.id===serviceId);
-  return svc&&svc.duration?Number(svc.duration):30;
+function isPast(dk,s){
+  const apptTime=slotDateTime(dk,s);
+  if(!apptTime)return false;
+  return new Date()>=apptTime;
 }
-function selDur(){return selSvc?getSvcDur(selSvc):30;}
-function durTxt(d){return d<=30?'٣٠ د':d===45?'٤٥ د':d===60?'ساعة':d===90?'ساعة ونص':'ساعتين';}
-
-// الأوقات التي يشغلها حجز موجود
-function occupiedBy(b){
-  const dur=getSvcDur(b.serviceId);
-  const count=Math.max(1,Math.ceil(dur/30));
-  const allS=slots();
-  const si=allS.indexOf(b.slot);
-  if(si<0)return[b.slot];
-  return allS.slice(si,Math.min(si+count,allS.length));
-}
-
-function isBooked(dk,s){
-  return db.bookings.some(b=>{
-    if(b.dateKey!==dk||b.cancelled)return false;
-    return occupiedBy(b).includes(s);
+function isBooked(dk,s){return db.bookings.some(b=>b.dateKey===dk&&b.slot===s&&!b.cancelled);}
+function phoneBooked(p){const np=normPhone(p);return db.bookings.some(b=>!b.cancelled&&normPhone(b.phone||'')===np);}
+function allBooked(dk){const av=slots().filter(s=>!isPast(dk,s));return av.length===0||av.every(s=>isBooked(dk,s));}
+function renderSvcs(){
+  const g=document.getElementById('svcGrid');g.innerHTML='';
+  SVCS.forEach(s=>{
+    const b=document.createElement('button');
+    b.className='svc-btn'+(selSvc===s.id?' sel':'');
+    const dur=s.duration||30;
+    const dl=dur<=30?'٣٠ د':dur===45?'٤٥ د':dur===60?'ساعة':dur===90?'ساعة ونص':'ساعتين';
+    b.innerHTML=`<span class="svc-name">${s.name}</span><span class="svc-price">${fmtPrice(s.price)}</span><span style="font-size:9px;color:var(--muted);margin-top:2px;display:block">⏱ ${dl}</span>`;
+    b.onclick=()=>{selSvc=s.id;selSlot=null;renderSvcs();renderSlots();updateBtn();};
+    g.appendChild(b);
   });
 }
-
-// هل يمكن الحجز في هذا الوقت (الوقت الأخير دائماً مقبول)
-function canBook(dk,startSlot){
-  const allS=slots();
-  const si=allS.indexOf(startSlot);
-  if(si<0)return false;
-  const dur=selDur();
-  const count=Math.max(1,Math.ceil(dur/30));
-  // نأخذ الأوقات المتاحة بحد أقصى نهاية الدوام
-  const needed=allS.slice(si,Math.min(si+count,allS.length));
-  if(needed.length===0)return false;
-  return needed.every(s=>!isBooked(dk,s)&&!isPast(dk,s));
-}
-
-function phoneBooked(p){const np=normPhone(p);return db.bookings.some(b=>!b.cancelled&&normPhone(b.phone||'')===np);}
-function allBooked(dk){
-  const free=slots().filter(s=>!isPast(dk,s)&&!isBooked(dk,s));
-  if(!free.length)return true;
-  if(selSvc)return!free.some(s=>canBook(dk,s));
-  return false;
-}
-
 async function load(){
   try{
     const snap=await getDoc(DB);
@@ -493,9 +462,8 @@ function renderSvcs(){
   SVCS.forEach(s=>{
     const b=document.createElement('button');
     b.className='svc-btn'+(selSvc===s.id?' sel':'');
-    const dur=s.duration||30;
-    b.innerHTML=`<span class="svc-name">${s.name}</span><span class="svc-price">${fmtPrice(s.price)}</span><span style="font-size:9px;color:var(--muted);margin-top:2px;display:block">⏱ ${durTxt(dur)}</span>`;
-    b.onclick=()=>{selSvc=s.id;selSlot=null;renderSvcs();renderSlots();updateBtn();};
+    b.innerHTML=`<span class="svc-name">${s.name}</span><span class="svc-price">${fmtPrice(s.price)}</span>`;
+    b.onclick=()=>{selSvc=s.id;renderSvcs();updateBtn();};
     g.appendChild(b);
   });
 }
@@ -517,26 +485,30 @@ function renderSlots(){
   const wrap=document.getElementById('slotsWrap');
   if(!selDateKey){wrap.style.display='none';return;}
   wrap.style.display='block';
-  const lbl=selSvc?` — مدة الخدمة: ${durTxt(selDur())}` :'';
-  document.getElementById('slotsLabel').textContent=`الأوقات — ${selDateLabel}${lbl}`;
+  document.getElementById('slotsLabel').textContent=`الأوقات — ${selDateLabel}`;
   const g=document.getElementById('slotsGrid');g.innerHTML='';
   const full=allBooked(selDateKey);
   document.getElementById('allBkdBox').style.display=full?'block':'none';
   document.getElementById('waitBtnWrap').style.display=full?'block':'none';
   document.getElementById('bookBtnWrap').style.display=full?'none':'block';
+  // مدة الخدمة المختارة
+  const selSvcObj=selSvc?(db.services||SVCS).find(x=>x.id===selSvc):null;
+  const dur=selSvcObj&&selSvcObj.duration?Number(selSvcObj.duration):30;
+  const slotsArr=slots();
   slots().forEach(s=>{
-    const past=isPast(selDateKey,s);
-    const bkd=isBooked(selDateKey,s);
-    const ok=!past&&!bkd&&canBook(selDateKey,s);
+    const bkd=isBooked(selDateKey,s),past=isPast(selDateKey,s);
+    // فحص إذا يوجد أوقات كافية بعد هذا الوقت للخدمة المختارة
+    const si=slotsArr.indexOf(s);
+    const need=Math.max(1,Math.ceil(dur/30));
+    // الوقت الأخير دائماً متاح - الخدمة تبدأ فيه حتى لو ما كفت أوقات بعده
+    const isLast=si===slotsArr.length-1;
+    const needed=slotsArr.slice(si,si+need);
+    const available=isLast?(!bkd&&!past):needed.every(ss=>!isBooked(selDateKey,ss)&&!isPast(selDateKey,ss));
     const b=document.createElement('button');
-    if(bkd){b.className='slot-btn bkd';b.textContent=s;b.disabled=true;}
-    else if(past){b.className='slot-btn past';b.textContent=s;b.disabled=true;}
-    else if(!ok){b.className='slot-btn past';b.textContent=s;b.disabled=true;}
-    else{
-      b.className='slot-btn'+(selSlot===s?' sel':'');
-      b.textContent=s;
-      b.onclick=()=>{selSlot=s;renderSlots();updateBtn();};
-    }
+    b.className='slot-btn'+(bkd?' bkd':'')+((!available&&!bkd)||past?' past':'')+(selSlot===s?' sel':'');
+    b.textContent=s;
+    if(!bkd&&!past&&available)b.onclick=()=>{selSlot=s;renderSlots();updateBtn();};
+    else if(!bkd&&!past)b.disabled=true;
     g.appendChild(b);
   });
 }
@@ -618,10 +590,6 @@ function resetForm(){
   document.getElementById('nameInp').addEventListener('input',updateBtn);
   document.getElementById('phoneInp').addEventListener('input',updateBtn);
   window.doBook=doBook;window.doWaitlist=doWaitlist;window.resetForm=resetForm;
-  // تحديث تلقائي كل 30 ثانية
-  setInterval(async()=>{
-    try{await load();renderSvcs();renderDays();if(selDateKey)renderSlots();}catch{}
-  },30000);
 })();
 </script>
 </body>
