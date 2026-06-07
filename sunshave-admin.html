@@ -278,7 +278,7 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);color:
         <div style="display:flex;flex-direction:column;gap:7px;">
           <input id="mName" class="sinp" placeholder="اسم الزبون..."/>
           <input id="mPhone" class="sinp" placeholder="رقم الهاتف..." type="tel"/>
-          <select id="mSvc" class="sinp"><option value="">اختار الخدمة</option></select>
+          <select id="mSvc" class="sinp" onchange="updateMSlots()"><option value="">اختار الخدمة</option></select>
           <select id="mDay" class="sinp" onchange="updateMSlots()"><option value="">اختار اليوم</option></select>
           <select id="mSlot" class="sinp"><option value="">اختار الساعة</option></select>
           <div style="display:flex;gap:7px;margin-top:3px;">
@@ -810,26 +810,48 @@ function slotsOccupiedByBooking(b){
   const allS=slots();
   const si=allS.indexOf(b.slot);
   if(si<0)return[b.slot];
-  return allS.slice(si,si+count);
+  return allS.slice(si,Math.min(si+count,allS.length));
+}
+
+// هل يتداخل حجز جديد مع حجوزات قائمة (مع مراعاة مدة كل خدمة)
+function isSlotConflict(dateKey,startSlot,serviceId,excludeId){
+  const allS=slots();
+  const si=allS.indexOf(startSlot);
+  if(si<0)return true;
+  const svcs=data.services||[];
+  const svc=svcs.find(s=>s.id===serviceId||s.name===serviceId);
+  const dur=svc&&svc.duration?svc.duration:30;
+  const count=Math.max(1,Math.ceil(dur/30));
+  const newEnd=si+count;
+  return data.bookings.some(b=>{
+    if(b.dateKey!==dateKey||b.cancelled)return false;
+    if(excludeId&&b.id===excludeId)return false;
+    const bi=allS.indexOf(b.slot);
+    if(bi<0)return false;
+    const bdur=getSvcDuration(b.serviceId||b.service);
+    const bcount=Math.max(1,Math.ceil(bdur/30));
+    const bEnd=bi+bcount;
+    return si<bEnd&&newEnd>bi;
+  });
 }
 
 function updateMSlots(){
   const dateKey=document.getElementById('mDay').value;
+  const svcSel=document.getElementById('mSvc');
+  const svcId=svcSel.options[svcSel.selectedIndex]?.dataset?.id||'';
   const sel=document.getElementById('mSlot');
   sel.innerHTML='<option value="">اختار الساعة</option>';
   if(!dateKey)return;
   const workSlots=slots();
-  // حساب كل الأوقات المحجوزة مع مراعاة مدة الخدمة
-  const occupiedSlots=new Set();
-  data.bookings.filter(b=>b.dateKey===dateKey&&!b.cancelled).forEach(b=>{
-    slotsOccupiedByBooking(b).forEach(s=>occupiedSlots.add(s));
-  });
   workSlots.forEach(s=>{
-    const bkd=occupiedSlots.has(s);
+    // إذا محددة خدمة: تحقق تداخل كامل بمدتها، وإلا تحقق الوقت فاضي بس
+    const conflict=svcId
+      ?isSlotConflict(dateKey,s,svcId,null)
+      :data.bookings.some(b=>b.dateKey===dateKey&&!b.cancelled&&slotsOccupiedByBooking(b).includes(s));
     const opt=document.createElement('option');
     opt.value=s;
-    opt.textContent=bkd?`${s} — محجوز`:s;
-    if(bkd)opt.disabled=true;
+    opt.textContent=conflict?`${s} — محجوز`:s;
+    if(conflict)opt.disabled=true;
     sel.appendChild(opt);
   });
 }
@@ -884,7 +906,7 @@ async function init(){
   updateManualSvcSelect();
   document.getElementById('loaderApp').style.display='none';
   document.getElementById('mainApp').style.display='block';
-  setInterval(async()=>{if(activeTab==='settings')return;try{await load();render();checkNew();updateManualSvcSelect();}catch{}},60000);
+  setInterval(async()=>{if(activeTab==='settings')return;try{await load();render();checkNew();updateManualSvcSelect();}catch{}},10000);
 }
 window._init=init;
 

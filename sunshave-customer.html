@@ -426,9 +426,25 @@ function canBook(dk,startSlot){
   const allS=slots();
   const si=allS.indexOf(startSlot);
   if(si<0)return false;
-  // الوقت الأخير دائماً مقبول — الخدمة تبدأ فيه حتى لو ما في أوقات بعده
+  if(isPast(dk,startSlot))return false;
+  // الأوقات التي تحتاجها الخدمة الجديدة
   const needed=allS.slice(si,Math.min(si+count,allS.length));
-  return needed.every(s=>!isBooked(dk,s)&&!isPast(dk,s));
+  // تحقق إن كل وقت مطلوب فاضي (مش محجوز من خدمة سابقة)
+  if(!needed.every(s=>!isBooked(dk,s)))return false;
+  // تحقق إن الوقت الجديد ما يتداخل مع بداية حجز قائم
+  // (مثلاً: حجز ساعة كاملة لا يبدأ في وسط خدمة قائمة مدتها نص ساعة)
+  const newEnd=si+count;
+  const conflict=db.bookings.some(b=>{
+    if(b.dateKey!==dk||b.cancelled)return false;
+    const bi=allS.indexOf(b.slot);
+    if(bi<0)return false;
+    const bdur=getSvcDuration(b.serviceId);
+    const bcount=Math.max(1,Math.ceil(bdur/30));
+    const bEnd=bi+bcount;
+    // تداخل: نطاق الجديد يتقاطع مع نطاق القائم
+    return si<bEnd&&newEnd>bi;
+  });
+  return !conflict;
 }
 
 function phoneBooked(p){const np=normPhone(p);return db.bookings.some(b=>!b.cancelled&&normPhone(b.phone||'')===np);}
@@ -566,16 +582,7 @@ async function doBook(){
   db.bookings.push(b);
   try{
     await save();
-    // إرسال إشعار ntfy
-    try{
-      const msg=encodeURIComponent(`👤 ${name}\n✂️ ${svc.name}\n🕐 ${selSlot}\n📅 ${selDateLabel}\n📞 ${phone}`);
-      const title=encodeURIComponent('حجز جديد - Sun Shave');
-      fetch(`https://ntfy.sh/${NTFY_TOPIC}?title=${title}&priority=high&tags=scissors`,{
-        method:'POST',
-        mode:'no-cors',
-        body:`👤 ${name}\n✂️ ${svc.name}\n🕐 ${selSlot}\n📅 ${selDateLabel}\n📞 ${phone}`
-      });
-    }catch{}
+
     document.getElementById('s-name').textContent=name;
     document.getElementById('s-svc').textContent=svc.name;
     document.getElementById('s-date').textContent=selDateLabel;
@@ -633,7 +640,7 @@ function resetForm(){
       renderDays();
       if(selDateKey)renderSlots();
     }catch{}
-  },30000);
+  },10000);
 })();
 </script>
 </body>
