@@ -565,12 +565,8 @@ async function load(){
         archivedBookings:typeof r.archivedBookings==='string'?JSON.parse(r.archivedBookings):(r.archivedBookings||[]),
         expenses:typeof r.expenses==='string'?JSON.parse(r.expenses):(r.expenses||[]),
         workHours:{start:r.workHoursStart||"5:00 م",end:r.workHoursEnd||"11:00 م"},
-        services:typeof r.services==='string'?JSON.parse(r.services):(r.services||defaultSvcs)
+        services:typeof r.services==='string'?(JSON.parse(r.services)):(Array.isArray(r.services)?r.services:defaultSvcs)
       };
-      // إضافة svc7 (صبي) تلقائياً إذا ما كانت موجودة في Firebase
-      if(!data.services.find(s=>s.name&&s.name.includes('صبي'))){
-        data.services.push({id:'svc7',name:'صبي',price:10000,icon:'🧒',duration:30});
-      }
     }
     cleanOld();lastSync=new Date();syncBar(true);
   }catch(e){syncBar(false);toast('خطأ في الاتصال');}

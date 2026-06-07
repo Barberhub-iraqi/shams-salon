@@ -633,13 +633,9 @@ async function load(){
         workHours:{start:r.workHoursStart||"5:00 م",end:r.workHoursEnd||"11:00 م"},
         services:db.services||SVCS,
       };
-      if(r.services){
+      if(r.services!==undefined){
         const loaded=typeof r.services==='string'?JSON.parse(r.services):r.services;
-        if(Array.isArray(loaded)&&loaded.length>0){SVCS=loaded;db.services=loaded;}
-        // إضافة صبي تلقائياً إذا ما كانت موجودة في Firebase
-        if(!SVCS.find(s=>s.name&&s.name.includes('صبي'))){
-          SVCS.push({id:'svc7',name:'صبي',price:7500,icon:'🧒',duration:15});
-        }
+        if(Array.isArray(loaded)){SVCS=loaded;db.services=loaded;}
       }
       
     }
