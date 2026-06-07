@@ -420,6 +420,7 @@ function getBoysSvcId(){const s=getBoysSvc();return s?s.id:null;}
 function isBoysSvc(id){const svc=SVCS.find(s=>s.id===id);return !!(svc&&svc.name&&svc.name.includes('صبي'));}
 function boysUnitPrice(){const svc=getBoysSvc();return svc?Number(svc.price):10000;}
 function isShiswarSvc(id){const svc=SVCS.find(s=>s.id===id);return !!(svc&&svc.name&&svc.name.includes('شسوار'));}
+function isSkinSvc(id){const svc=SVCS.find(s=>s.id===id);return !!(svc&&svc.name&&(svc.name.includes('تنظيف بشرة')||svc.name.includes('بشره')));}
 
 
 function openKidsModal(){
@@ -555,8 +556,8 @@ function selDur(){
 
 // كل الأوقات التي يشغلها حجز (بناءً على مدته)
 function occupiedSlots(b){
-  // الشسوار ما يشغل الوقت — يحجز بدون ما يمنع الآخرين
-  if(isShiswarSvc(b.serviceId))return[];
+  // الشسوار وتنظيف البشرة ما يشغلون الوقت
+  if(isShiswarSvc(b.serviceId)||isSkinSvc(b.serviceId))return[];
   const dur=getBookingDuration(b);
   const count=Math.max(1,Math.ceil(dur/60));
   const allS=slots();
@@ -575,8 +576,8 @@ function isBooked(dk,s){
 
 // هل يمكن حجز وقت معين للخدمة المختارة (أوقات كافية متتالية)
 function canBook(dk,startSlot){
-  // الشسوار مفتوح بأي وقت حتى لو محجوز
-  if(isShiswarSvc(selSvc))return !isPast(dk,startSlot);
+  // الشسوار وتنظيف البشرة مفتوحة بأي وقت حتى لو محجوز
+  if(isShiswarSvc(selSvc)||isSkinSvc(selSvc))return !isPast(dk,startSlot);
   const dur=selDur();
   const count=Math.max(1,Math.ceil(dur/60));
   const allS=slots();
@@ -743,7 +744,7 @@ function renderSlots(){
     // نعرض بس كل step سلوت — إلا لو في حجوز يكسر الترتيب
     if(step>1&&idx%step!==0)return;
     const past=isPast(selDateKey,s);
-    const bkd=isShiswarSvc(selSvc)?false:isBooked(selDateKey,s);
+    const bkd=(isShiswarSvc(selSvc)||isSkinSvc(selSvc))?false:isBooked(selDateKey,s);
     const notEnough=!past&&!bkd&&selSvc&&!canBook(selDateKey,s);
     if(notEnough)return;
     const b=document.createElement('button');
