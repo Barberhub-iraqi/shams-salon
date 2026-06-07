@@ -475,12 +475,18 @@ function getSvcDuration(serviceId){
   const svc=svcs.find(s=>s.id===serviceId);
   return svc&&svc.duration?Number(svc.duration):30;
 }
+// مدة حجز معين (يأخذ بعين الاعتبار الأطفال اليدوي)
+function getBookingDuration(b){
+  if(b.kidsDuration)return Number(b.kidsDuration);
+  if(b.kidsCount&&b.serviceId===KIDS_SVC_ID)return Number(b.kidsCount)*KIDS_DUR_PER;
+  return getSvcDuration(b.serviceId);
+}
 // مدة الخدمة المختارة حالياً
 function selDur(){return selSvc?getSvcDuration(selSvc):30;}
 
 // كل الأوقات التي يشغلها حجز (بناءً على مدته)
 function occupiedSlots(b){
-  const dur=getSvcDuration(b.serviceId);
+  const dur=getBookingDuration(b);
   const count=Math.max(1,Math.ceil(dur/30));
   const allS=slots();
   const si=allS.indexOf(b.slot);
@@ -515,7 +521,7 @@ function canBook(dk,startSlot){
     if(b.dateKey!==dk||b.cancelled)return false;
     const bi=allS.indexOf(b.slot);
     if(bi<0)return false;
-    const bdur=getSvcDuration(b.serviceId);
+    const bdur=getBookingDuration(b);
     const bcount=Math.max(1,Math.ceil(bdur/30));
     const bEnd=bi+bcount;
     // تداخل: نطاق الجديد يتقاطع مع نطاق القائم
@@ -543,10 +549,11 @@ async function load(){
         waitlist:typeof r.waitlist==='string'?JSON.parse(r.waitlist):(r.waitlist||[]),
         disabledDays:typeof r.disabledDays==='string'?JSON.parse(r.disabledDays):(r.disabledDays||[]),
         workHours:{start:r.workHoursStart||"5:00 م",end:r.workHoursEnd||"11:00 م"},
+        services:db.services||SVCS,
       };
       if(r.services){
         const loaded=typeof r.services==='string'?JSON.parse(r.services):r.services;
-        if(Array.isArray(loaded)&&loaded.length>0)SVCS=loaded;
+        if(Array.isArray(loaded)&&loaded.length>0){SVCS=loaded;db.services=loaded;}
       }
       
     }
