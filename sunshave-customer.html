@@ -688,7 +688,7 @@ async function doBook(){
   try{
     await save();
     // إشعار ntfy فور الحجز
-    try{await fetch('https://ntfy.sh/sunshave-vip-2025',{method:'POST',headers:{'Title':'🔔 حجز جديد — Sun Shave','Priority':'high','Tags':'scissors','Content-Type':'text/plain; charset=utf-8'},body:`👤 ${b.name}\n✂️ ${b.service}\n🕐 ${b.slot}\n📅 ${b.day||b.dateKey}\n📞 ${b.phone}`});}catch{}
+    try{await fetch('https://ntfy.sh/sunshave-vip-2025?title='+encodeURIComponent('🔔 حجز جديد — Sun Shave')+'&priority=high&tags=scissors',{method:'POST',mode:'no-cors',body:`👤 ${b.name}\n✂️ ${b.service}\n🕐 ${b.slot}\n📅 ${b.day||b.dateKey}\n📞 ${b.phone}`});}catch{}
 
     document.getElementById('s-name').textContent=name;
     document.getElementById('s-svc').textContent=svc.name;

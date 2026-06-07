@@ -996,16 +996,8 @@ window.addExp=addExp;window.delExp=delExp;window.notifyWait=notifyWait;
 const NTFY_TOPIC='sunshave-vip-2025';
 async function sendNtfy(title,body){
   try{
-    await fetch('https://ntfy.sh/'+NTFY_TOPIC,{
-      method:'POST',
-      headers:{
-        'Title':title,
-        'Priority':'high',
-        'Tags':'scissors',
-        'Content-Type':'text/plain; charset=utf-8'
-      },
-      body:body
-    });
+    const url='https://ntfy.sh/'+NTFY_TOPIC+'?title='+encodeURIComponent(title)+'&priority=high&tags=scissors';
+    await fetch(url,{method:'POST',mode:'no-cors',body:body});
   }catch(e){console.warn('ntfy error:',e);}
 }
 window.sendNtfy=sendNtfy;
