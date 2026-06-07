@@ -285,7 +285,7 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);color:
             <div id="mKidsInfo" style="font-size:11px;color:var(--muted);margin-top:7px;text-align:center"></div>
           </div>
           <div id="mBoysRow" style="display:none;background:rgba(201,168,76,0.06);border:1px solid rgba(201,168,76,0.2);border-radius:8px;padding:10px;">
-            <div style="font-size:10px;color:var(--gold);margin-bottom:7px;font-weight:700">🧒 عدد الصبيان (١٥ د لكل صبي)</div>
+            <div style="font-size:10px;color:var(--gold);margin-bottom:7px;font-weight:700">🧒 عدد الصبيان (٣٠ د لكل صبي)</div>
             <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:5px;" id="mBoysGrid"></div>
             <div id="mBoysInfo" style="font-size:11px;color:var(--muted);margin-top:7px;text-align:center"></div>
           </div>
@@ -568,8 +568,8 @@ async function load(){
         services:typeof r.services==='string'?JSON.parse(r.services):(r.services||defaultSvcs)
       };
       // إضافة svc7 (صبي) تلقائياً إذا ما كانت موجودة في Firebase
-      if(!data.services.find(s=>s.id===BOYS_SVC_ID)){
-        data.services.push({id:'svc7',name:'صبي',price:7500,icon:'🧒',duration:15});
+      if(!data.services.find(s=>s.name&&s.name.includes('صبي'))){
+        data.services.push({id:'svc7',name:'صبي',price:10000,icon:'🧒',duration:30});
       }
     }
     cleanOld();lastSync=new Date();syncBar(true);
@@ -826,8 +826,8 @@ function slotsOccupiedByBooking(b){
   let dur;
   if(b.kidsDuration)dur=Number(b.kidsDuration);
   else if(b.boysDuration)dur=Number(b.boysDuration);
-  else if(b.kidsCount&&b.serviceId===KIDS_SVC_ID)dur=Number(b.kidsCount)*KIDS_DUR_PER;
-  else if(b.boysCount&&b.serviceId===BOYS_SVC_ID)dur=Number(b.boysCount)*BOYS_DUR_PER;
+  else if(b.kidsCount&&isKidsSvc(b.serviceId))dur=Number(b.kidsCount)*KIDS_DUR_PER;
+  else if(b.boysCount&&isBoysSvc(b.serviceId))dur=Number(b.boysCount)*BOYS_DUR_PER;
   else{const svc=svcs.find(s=>s.id===b.serviceId||s.name===b.service);dur=svc&&svc.duration?svc.duration:30;}
   const count=Math.max(1,Math.ceil(dur/30));
   const allS=slots();
@@ -858,21 +858,25 @@ function isSlotConflict(dateKey,startSlot,serviceId,excludeId){
   });
 }
 
-const KIDS_SVC_ID='svc4';
 const KIDS_DUR_PER=15;
-function kidsUnitPrice(){const svc=(data.services||[]).find(s=>s.id===KIDS_SVC_ID);return svc?Number(svc.price):10000;}
+function getKidsSvc(){return(data.services||[]).find(s=>s.name&&s.name.includes('طفل'))||null;}
+function getKidsSvcId(){const s=getKidsSvc();return s?s.id:null;}
+function isKidsSvc(id){const svc=(data.services||[]).find(s=>s.id===id);return !!(svc&&svc.name&&svc.name.includes('طفل'));}
+function kidsUnitPrice(){const svc=getKidsSvc();return svc?Number(svc.price):10000;}
 let mKidsCount=0;
 
-const BOYS_SVC_ID='svc7';
-const BOYS_DUR_PER=15;
-function boysUnitPrice(){const svc=(data.services||[]).find(s=>s.id===BOYS_SVC_ID);return svc?Number(svc.price):7500;}
+const BOYS_DUR_PER=30;
+function getBoysSvc(){return(data.services||[]).find(s=>s.name&&s.name.includes('صبي'))||null;}
+function getBoysSvcId(){const s=getBoysSvc();return s?s.id:null;}
+function isBoysSvc(id){const svc=(data.services||[]).find(s=>s.id===id);return !!(svc&&svc.name&&svc.name.includes('صبي'));}
+function boysUnitPrice(){const svc=getBoysSvc();return svc?Number(svc.price):10000;}
 let mBoysCount=0;
 
 function onMSvcChange(){
   const se=document.getElementById('mSvc');
   const svcId=se.options[se.selectedIndex]?.dataset?.id||'';
-  const isKids=svcId===KIDS_SVC_ID;
-  const isBoys=svcId===BOYS_SVC_ID;
+  const isKids=isKidsSvc(svcId);
+  const isBoys=isBoysSvc(svcId);
   const kidsRow=document.getElementById('mKidsRow');
   kidsRow.style.display=isKids?'block':'none';
   const boysRow=document.getElementById('mBoysRow');
@@ -935,8 +939,8 @@ function updateMSlots(){
   const dateKey=document.getElementById('mDay').value;
   const svcSel=document.getElementById('mSvc');
   const svcId=svcSel.options[svcSel.selectedIndex]?.dataset?.id||'';
-  const isKids=svcId===KIDS_SVC_ID;
-  const isBoys=svcId===BOYS_SVC_ID;
+  const isKids=isKidsSvc(svcId);
+  const isBoys=isBoysSvc(svcId);
   const sel=document.getElementById('mSlot');
   sel.innerHTML='<option value="">اختار الساعة</option>';
   if(!dateKey)return;
@@ -972,8 +976,8 @@ async function saveManual(){
   const slot=document.getElementById('mSlot').value;
   if(!name){toast('أدخل الاسم');return;}if(!svcName){toast('اختار الخدمة');return;}if(!dateKey){toast('اختار اليوم');return;}if(!slot){toast('اختار الساعة');return;}
   const svcId=se.options[se.selectedIndex]?.dataset?.id||'';
-  const isKids=svcId===KIDS_SVC_ID;
-  const isBoys=svcId===BOYS_SVC_ID;
+  const isKids=isKidsSvc(svcId);
+  const isBoys=isBoysSvc(svcId);
   if(isKids&&!mKidsCount){toast('اختار عدد الأطفال');return;}
   if(isBoys&&!mBoysCount){toast('اختار عدد الصبيان');return;}
   // حساب المدة والسعر للأطفال والصبيان
