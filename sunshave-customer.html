@@ -568,10 +568,13 @@ function occupiedSlots(b){
 
 // هل وقت معين محجوز (مع مراعاة مدة الخدمات الأخرى)
 function isBooked(dk,s){
-  return db.bookings.some(b=>{
+  const realBooked=db.bookings.some(b=>{
     if(b.dateKey!==dk||b.cancelled)return false;
     return occupiedSlots(b).includes(s);
   });
+  if(realBooked)return true;
+  const blocked=(db.blockedSlots||{})[dk]||[];
+  return blocked.includes(s);
 }
 
 // هل يمكن حجز وقت معين للخدمة المختارة (أوقات كافية متتالية)
@@ -622,6 +625,7 @@ async function load(){
         bookings:typeof r.bookings==='string'?JSON.parse(r.bookings):(r.bookings||[]),
         waitlist:typeof r.waitlist==='string'?JSON.parse(r.waitlist):(r.waitlist||[]),
         disabledDays:typeof r.disabledDays==='string'?JSON.parse(r.disabledDays):(r.disabledDays||[]),
+        blockedSlots:typeof r.blockedSlots==='string'?JSON.parse(r.blockedSlots):(r.blockedSlots||{}),
         workHours:{start:r.workHoursStart||"5:00 م",end:r.workHoursEnd||"11:00 م"},
       };
       // الخدمات تُقرأ من Firebase دائماً — ما في قيم احتياطية ثابتة
