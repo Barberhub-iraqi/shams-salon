@@ -652,7 +652,7 @@ function renderBookings(){
         ${wi?wi.before===0?'<span style="color:#66BB6A">⚡ دوره الآن</span>':`<span style="color:var(--gold)">⏳ قبله ${wi.before} (~${wi.mins}د)</span>`:''}
       </div>
       <div class="acts">
-        <button class="wa-btn" onclick="remind('${b.id}')" ${b.reminded?'disabled':''}>${waI} ${b.reminded?'تم التأكيد':'تأكيد'}</button>
+        <button class="wa-btn" onclick="remind('${b.id}')">${waI} ${b.reminded?'تم التأكيد':'تأكيد'}</button>
         <button class="done-btn" onclick="markDone('${b.id}')">✅ تمت</button>
         <button class="del-btn" onclick="cancelB('${b.id}')">إلغاء</button>
       </div>
@@ -665,7 +665,7 @@ function renderBookings(){
 
 async function remind(id){
   const b=data.bookings.find(x=>x.id===id);if(!b)return;
-  const msg=`مرحبا ☺️ ${b.name}\n🔔 تذكير بموعدك في صالون شمس\n⭐️الكوافير : محمد كاظم\n✂️ ${b.service}\n📅 ${b.dateLabel||b.day}\n⏰ ${b.slot}\n💰 ${fp(b.price)}\n🕒 نرجو الالتزام بموعد الحجز، وفي حال التأخر أكثر من 15 دقيقة قد يتم إلغاء الموعد لإتاحة الفرصة للزبائن الآخرين`;
+  const msg=`مرحبا ☺️ ${b.name}\n✅ تم تثبيت الحجز في صالون شمس\n⭐️الكوافير : محمد كاظم\n✂️ ${b.service}\n📅 ${b.dateLabel||b.day}\n⏰ ${b.slot}\n💰 ${fp(b.price)}\n🕒 نرجو الالتزام بموعد الحجز، وفي حال التأخر أكثر من 15 دقيقة قد يتم إلغاء الموعد لإتاحة الفرصة للزبائن الآخرين`;
   openWA(b.phone,msg);
   b.reminded=true;
   try{await save();render();toast(`✅ تأكيد لـ ${b.name}`);}
