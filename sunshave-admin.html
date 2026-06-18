@@ -162,6 +162,9 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);color:
 /* SETTINGS */
 .scard{background:var(--card);border:1px solid var(--border2);border-radius:10px;padding:14px;margin-bottom:10px;}
 .stitle{font-size:12px;font-weight:700;color:var(--gold);margin-bottom:12px;}
+.photo-upload-area{border:1.5px dashed rgba(201,168,76,0.3);border-radius:10px;padding:16px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:10px;}
+.photo-upload-area:hover{border-color:var(--gold);background:rgba(201,168,76,0.04);}
+.photo-upload-text{font-size:12px;color:var(--muted);}
 .srow{display:flex;flex-direction:column;gap:5px;margin-bottom:9px;}
 .slbl{font-size:10px;color:var(--muted);}
 .sinp{background:var(--black);border:1px solid var(--border2);border-radius:7px;padding:9px 11px;font-family:'Cairo',sans-serif;font-size:13px;color:var(--text);width:100%;outline:none;}
@@ -385,6 +388,19 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);color:
   <!-- SETTINGS -->
   <div class="tc" id="tc-settings">
     <div class="sec" style="margin-top:14px">
+      <!-- SHOP BACKGROUND PHOTO -->
+      <div class="scard" style="border-color:rgba(201,168,76,0.2)">
+        <div class="stitle">🏪 صورة المحل (تظهر خلف الشعار بصفحة الزبون)</div>
+        <div class="srow">
+          <div class="slbl">🖼️ صورة الخلفية</div>
+          <div class="photo-upload-area" onclick="document.getElementById('shop-bg-input').click()" style="padding:10px">
+            <img id="shop-bg-preview" style="width:100%;height:90px;object-fit:cover;border-radius:8px;margin-bottom:8px;display:none;"/>
+            <div class="photo-upload-text">اضغط لاختيار صورة الخلفية</div>
+          </div>
+          <input type="file" id="shop-bg-input" accept="image/*" style="display:none" onchange="onShopBgChange(event)"/>
+        </div>
+        <button class="save-btn" onclick="saveShopPhoto()">💾 حفظ صورة المحل</button>
+      </div>
       <!-- SERVICES PRICING EDITOR -->
       <div class="scard" style="border-color:rgba(201,168,76,0.2)">
         <div class="stitle">✂️ تسعيرة الخدمات</div>
@@ -510,6 +526,7 @@ let data={bookings:[],waitlist:[],disabledDays:[],blockedSlots:{},archivedBookin
   {id:'svc6',name:'تنظيف بشرة عادي',price:8000,icon:'🫧'}
 ]};
 let selDateKey='all',activeTab='bookings',activeSTab='week',lastSync=null;
+let shopBgBase64=null;
 
 function dk(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 function dl(d){return`${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;}
@@ -584,14 +601,15 @@ async function load(){
         archivedBookings:typeof r.archivedBookings==='string'?JSON.parse(r.archivedBookings):(r.archivedBookings||[]),
         expenses:typeof r.expenses==='string'?JSON.parse(r.expenses):(r.expenses||[]),
         workHours:{start:r.workHoursStart||"5:00 م",end:r.workHoursEnd||"11:00 م"},
-        services:typeof r.services==='string'?(JSON.parse(r.services)):(Array.isArray(r.services)?r.services:defaultSvcs)
+        services:typeof r.services==='string'?(JSON.parse(r.services)):(Array.isArray(r.services)?r.services:defaultSvcs),
+        heroPhoto:r.heroPhoto||''
       };
     }
     cleanOld();lastSync=new Date();syncBar(true);
   }catch(e){syncBar(false);toast('خطأ في الاتصال');}
 }
 async function save(){
-  await setDoc(DB,{bookings:JSON.stringify(data.bookings||[]),waitlist:JSON.stringify(data.waitlist||[]),disabledDays:JSON.stringify(data.disabledDays||[]),blockedSlots:JSON.stringify(data.blockedSlots||{}),archivedBookings:JSON.stringify(data.archivedBookings||[]),expenses:JSON.stringify(data.expenses||[]),services:JSON.stringify(data.services||[]),workHoursStart:(data.workHours&&data.workHours.start)||"5:00 م",workHoursEnd:(data.workHours&&data.workHours.end)||"11:00 م"});
+  await setDoc(DB,{bookings:JSON.stringify(data.bookings||[]),waitlist:JSON.stringify(data.waitlist||[]),disabledDays:JSON.stringify(data.disabledDays||[]),blockedSlots:JSON.stringify(data.blockedSlots||{}),archivedBookings:JSON.stringify(data.archivedBookings||[]),expenses:JSON.stringify(data.expenses||[]),services:JSON.stringify(data.services||[]),workHoursStart:(data.workHours&&data.workHours.start)||"5:00 م",workHoursEnd:(data.workHours&&data.workHours.end)||"11:00 م",heroPhoto:data.heroPhoto||''},{merge:true});
   lastSync=new Date();syncBar(true);
 }
 function cleanOld(){
@@ -751,6 +769,13 @@ function renderWaitlist(){
 async function notifyWait(id){const w=data.waitlist.find(x=>x.id===id);if(!w)return;const msg=`السلام عليكم ${w.name} 👋\n\n🎉 تفرغ وقت في Sun Shave ليوم ${w.day}!\n\nاحجز الآن ☀️`;openWA(w.phone,msg);data.waitlist=data.waitlist.filter(x=>x.id!==id);try{await save();renderWaitlist();toast(`✅ تم إبلاغ ${w.name}`);}catch{data.waitlist.push(w);}}
 
 function renderSettings(){
+  // Render shop background preview
+  shopBgBase64=null;
+  const bgPrev=document.getElementById('shop-bg-preview');
+  if(bgPrev){
+    if(data.heroPhoto){bgPrev.src=data.heroPhoto;bgPrev.style.display='block';}
+    else{bgPrev.removeAttribute('src');bgPrev.style.display='none';}
+  }
   // Render services editor
   const svcs=data.services||[];
   const sg=document.getElementById('svcEditGrid');
@@ -789,6 +814,38 @@ function renderSettings(){
   renderBlkDaySel();
 }
 
+function onShopBgChange(e){
+  const f=e.target.files[0];if(!f)return;
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    const img=new Image();
+    img.onload=()=>{
+      const MAX=900;
+      let w=img.width,h=img.height;
+      if(w>h){if(w>MAX){h=Math.round(h*MAX/w);w=MAX;}}
+      else{if(h>MAX){w=Math.round(w*MAX/h);h=MAX;}}
+      const canvas=document.createElement('canvas');
+      canvas.width=w;canvas.height=h;
+      const ctx=canvas.getContext('2d');
+      ctx.drawImage(img,0,0,w,h);
+      shopBgBase64=canvas.toDataURL('image/jpeg',0.65);
+      const preview=document.getElementById('shop-bg-preview');
+      preview.src=shopBgBase64;preview.style.display='block';
+    };
+    img.src=ev.target.result;
+  };reader.readAsDataURL(f);
+}
+async function saveShopPhoto(){
+  const heroPhoto=shopBgBase64||data.heroPhoto||'';
+  if(heroPhoto){
+    const sizeKB=Math.round(heroPhoto.length*0.75/1024);
+    if(sizeKB>900){toast(`❌ حجم الصورة كبير جداً (${sizeKB}KB) — اختر صورة أصغر`);return;}
+  }
+  data.heroPhoto=heroPhoto;
+  shopBgBase64=null;
+  try{await save();toast('✅ تم حفظ صورة المحل');}catch{toast('❌ فشل الحفظ');}
+}
+window.onShopBgChange=onShopBgChange;window.saveShopPhoto=saveShopPhoto;
 function addSvc(){
   const newId='svc'+Date.now();
   data.services.push({id:newId,name:'خدمة جديدة',price:10000,icon:'✂️',duration:60});
