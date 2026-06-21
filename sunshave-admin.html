@@ -998,6 +998,10 @@ function getBoysSvc(){return(data.services||[]).find(s=>s.name&&s.name.includes(
 function getBoysSvcId(){const s=getBoysSvc();return s?s.id:null;}
 function isBoysSvc(id){const svc=(data.services||[]).find(s=>s.id===id);return !!(svc&&svc.name&&svc.name.includes('صبي'));}
 function boysUnitPrice(){const svc=getBoysSvc();return svc?Number(svc.price):10000;}
+
+// الشسوار وتنظيف البشرة خدمات سريعة/مستقلة — ما تشغل وقت الكرسي وما تتأثر بحجوزات ثانية
+function isShiswarSvc(id){const svc=(data.services||[]).find(s=>s.id===id);return !!(svc&&svc.name&&svc.name.includes('شسوار'));}
+function isSkinSvc(id){const svc=(data.services||[]).find(s=>s.id===id);return !!(svc&&svc.name&&(svc.name.includes('تنظيف بشرة')||svc.name.includes('بشره')));}
 let mBoysCount=0;
 
 function onMSvcChange(){
@@ -1070,17 +1074,18 @@ function updateMSlots(){
   sel.innerHTML='<option value="">اختار الساعة</option>';
   if(!dateKey)return;
   const workSlots=slots();
-  // حساب الأوقات المحجوزة الحالية (من حجوزات موجودة)
-  const occupiedSlots=new Set();
-  data.bookings.filter(b=>b.dateKey===dateKey&&!b.cancelled).forEach(b=>{
-    slotsOccupiedByBooking(b).forEach(s=>occupiedSlots.add(s));
-  });
-  // حساب عدد السلوتات اللي يحتاجها الحجز الجديد (للأطفال والصبيان)
   const svcSel=document.getElementById('mSvc');
   const selOpt=Array.from(svcSel.options).find(o=>o.value===svcSel.value);
   const svcId=selOpt?.dataset?.id||'';
   const isKids=isKidsSvc(svcId);
   const isBoys=isBoysSvc(svcId);
+  const freeBooking=isShiswarSvc(svcId)||isSkinSvc(svcId);
+  // حساب الأوقات المحجوزة الحالية (نتجاهل حجوزات الشسوار وتنظيف البشرة لأنها ما تشغل وقت الكرسي)
+  const occupiedSlots=new Set();
+  data.bookings.filter(b=>b.dateKey===dateKey&&!b.cancelled&&!isShiswarSvc(b.serviceId)&&!isSkinSvc(b.serviceId)).forEach(b=>{
+    slotsOccupiedByBooking(b).forEach(s=>occupiedSlots.add(s));
+  });
+  // حساب عدد السلوتات اللي يحتاجها الحجز الجديد (للأطفال والصبيان)
   let newDurSlots=1;
   if(isKids&&mKidsCount)newDurSlots=Math.max(1,Math.ceil(mKidsCount*KIDS_DUR_PER/60));
   else if(isBoys&&mBoysCount)newDurSlots=Math.max(1,Math.ceil(mBoysCount*BOYS_DUR_PER/60));
@@ -1088,10 +1093,11 @@ function updateMSlots(){
   const allS=slots();
   workSlots.forEach(s=>{
     const si=allS.indexOf(s);
-    // تحقق إذا أي slot من السلوتات المطلوبة للحجز الجديد محجوز
     let conflict=false;
-    for(let x=0;x<newDurSlots;x++){
-      if(si+x>=allS.length||occupiedSlots.has(allS[si+x])){conflict=true;break;}
+    if(!freeBooking){
+      for(let x=0;x<newDurSlots;x++){
+        if(si+x>=allS.length||occupiedSlots.has(allS[si+x])){conflict=true;break;}
+      }
     }
     const opt=document.createElement('option');
     opt.value=s;

@@ -50,7 +50,13 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);min-he
   -webkit-background-clip:text;-webkit-text-fill-color:transparent;
   position:relative;z-index:1;
 }
-.brand-sub{font-size:10px;letter-spacing:5px;color:var(--muted);margin-top:6px;position:relative;z-index:1;}
+.brand-sub{
+  font-size:28px;font-weight:900;
+  letter-spacing:1px;
+  background:linear-gradient(180deg,var(--gold3) 0%,var(--gold) 60%,var(--gold-dim) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  margin-top:6px;position:relative;z-index:1;
+}
 .hero-line{width:60px;height:1px;background:linear-gradient(to right,transparent,var(--gold),transparent);margin:12px auto 0;position:relative;z-index:1;}
 .work-badge{display:inline-block;margin-top:12px;font-size:11px;color:var(--gold);background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);border-radius:30px;padding:4px 16px;position:relative;z-index:1;}
 
@@ -58,12 +64,15 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);min-he
 .page{max-width:460px;margin:0 auto;padding:0 16px 100px;}
 .sec{margin-top:28px;}
 .sec-label{
-  font-size:9px;font-weight:700;letter-spacing:4px;
-  color:var(--gold-dim);
-  display:flex;align-items:center;gap:10px;
+  font-size:14px;font-weight:700;letter-spacing:.5px;
+  color:var(--gold);
+  display:inline-flex;align-items:center;gap:8px;
   margin-bottom:14px;
+  padding:7px 16px;
+  border:1px solid var(--gold-dim);
+  border-radius:8px;
+  background:rgba(201,168,76,0.06);
 }
-.sec-label::before,.sec-label::after{content:'';flex:1;height:1px;background:var(--border2);}
 .divider{height:1px;background:var(--border2);margin:24px 0;}
 
 /* INPUTS */
@@ -94,6 +103,21 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);min-he
 .svc-icon{font-size:22px;display:block;margin-bottom:6px;}
 .svc-name{font-size:13px;font-weight:700;color:var(--text);display:block;}
 .svc-price{font-size:11px;color:var(--gold);font-weight:600;margin-top:3px;display:block;}
+.svc-check{position:absolute;top:6px;left:6px;width:18px;height:18px;border-radius:50%;border:1.5px solid var(--border2);background:rgba(0,0,0,.3);display:flex;align-items:center;justify-content:center;font-size:11px;color:transparent;transition:all .2s;}
+.svc-btn.sel .svc-check{background:linear-gradient(135deg,var(--gold),var(--gold2));border-color:var(--gold);color:#000;}
+
+/* MULTI-SERVICE SUMMARY */
+.combo-bar{background:rgba(201,168,76,0.06);border:1px solid rgba(201,168,76,0.2);border-radius:12px;padding:12px 14px;margin-top:10px;display:none;}
+.combo-bar.show{display:block;}
+.combo-title{font-size:11px;color:var(--gold);font-weight:700;margin-bottom:8px;}
+.combo-list{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;}
+.combo-item{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--text);background:#0F0F08;border-radius:8px;padding:7px 10px;}
+.combo-item span.cn{flex:1;}
+.combo-item span.cp{color:var(--gold2);font-weight:700;margin:0 8px;}
+.combo-x{background:none;border:none;color:var(--muted);font-size:15px;cursor:pointer;line-height:1;padding:2px 4px;}
+.combo-x:hover{color:#C0392B;}
+.combo-total{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--border2);padding-top:8px;font-size:13px;}
+.combo-total strong{color:var(--gold2);font-size:16px;}
 
 /* DAYS */
 .days-row{display:flex;gap:7px;overflow-x:auto;padding-bottom:4px;}
@@ -193,7 +217,7 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);min-he
     <img src="https://raw.githubusercontent.com/Barberhub-iraqi/shams-salon/main/logo.png" alt="Sun Shave" style="width:160px;height:160px;object-fit:contain;filter:drop-shadow(0 0 30px rgba(201,168,76,0.6));display:block;margin:0 auto;transform:translateY(0px);"/>
   </div>
   <div class="brand-name">SUN SHAVE</div>
-  <div class="brand-sub">BARBER SHOP</div>
+  <div class="brand-sub">صالون شمس للرجال</div>
   <div class="hero-line"></div>
   <div class="work-badge" id="workBadge">احجز موعدك الآن</div>
 </div>
@@ -219,19 +243,24 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);min-he
     <div class="divider"></div>
 
     <div class="sec" style="margin-top:0">
-      <div class="sec-label">الخدمة</div>
+      <div class="sec-label">اختر الخدمة المناسبة لك <span style="color:var(--muted);font-weight:400">(تقدر تختار أكثر من خدمة)</span></div>
       <div class="svc-grid" id="svcGrid"></div>
+      <div class="combo-bar" id="comboBar">
+        <div class="combo-title">✓ الخدمات المختارة</div>
+        <div class="combo-list" id="comboList"></div>
+        <div class="combo-total"><span>المجموع</span><strong id="comboTotal"></strong></div>
+      </div>
     </div>
 
     <div class="divider"></div>
 
     <div class="sec" style="margin-top:0">
-      <div class="sec-label">اليوم</div>
+      <div class="sec-label">اختر اليوم المناسب لك</div>
       <div class="days-row" id="daysRow"></div>
     </div>
 
     <div class="sec" id="slotsWrap" style="display:none">
-      <div class="sec-label" id="slotsLabel">الأوقات المتاحة</div>
+      <div class="sec-label" id="slotsLabel">اختر الوقت المناسب لك</div>
       <div class="slots-grid" id="slotsGrid"></div>
       <div id="allBkdBox" style="display:none">
         <div class="all-bkd">
@@ -398,7 +427,8 @@ const NTFY_TOPIC='sunshave-vip-2025';
 let SVCS = [];
 
 let db={bookings:[],waitlist:[],disabledDays:[],workHours:{start:"4:00 م",end:"11:00 م"}};
-let selSvc=null,selDateKey=null,selDateLabel=null,selSlot=null,busy=false;
+let selSvcs=[]; // مصفوفة معرّفات الخدمات المختارة (يدعم اختيار أكثر من خدمة بنفس الحجز)
+let selDateKey=null,selDateLabel=null,selSlot=null,busy=false;
 let kidsCount=0,kidsSelectedTemp=0;
 let kidsOverridePrice=0; // السعر الكلي المحسوب (عدد × سعر الوحدة)
 let kidsOverrideDuration=0; // المدة الكلية المحسوبة
@@ -422,8 +452,77 @@ function boysUnitPrice(){const svc=getBoysSvc();return svc?Number(svc.price):100
 function isShiswarSvc(id){const svc=SVCS.find(s=>s.id===id);return !!(svc&&svc.name&&svc.name.includes('شسوار'));}
 function isSkinSvc(id){const svc=SVCS.find(s=>s.id===id);return !!(svc&&svc.name&&(svc.name.includes('تنظيف بشرة')||svc.name.includes('بشره')));}
 
+// ── اختيار أكثر من خدمة بنفس الحجز ──
+function addSvcToSelection(id){
+  if(!id)return;
+  if(!selSvcs.includes(id))selSvcs.push(id);
+}
+function removeSvcFromSelection(id){
+  selSvcs=selSvcs.filter(x=>x!==id);
+  if(isKidsSvc(id)){kidsCount=0;kidsOverridePrice=0;kidsOverrideDuration=0;}
+  if(isBoysSvc(id)){boysCount=0;boysOverridePrice=0;boysOverrideDuration=0;}
+}
+// سعر خدمة واحدة من المختارة (يأخذ بعين الاعتبار سعر الأطفال/الصبيان المحسوب)
+function svcUnitDisplayPrice(id){
+  const s=SVCS.find(x=>x.id===id);if(!s)return 0;
+  if(isKidsSvc(id)&&kidsOverridePrice)return kidsOverridePrice;
+  if(isBoysSvc(id)&&boysOverridePrice)return boysOverridePrice;
+  return Number(s.price)||0;
+}
+// مدة خدمة واحدة من المختارة
+function svcUnitDisplayDuration(id){
+  if(isKidsSvc(id)&&kidsOverrideDuration)return kidsOverrideDuration;
+  if(isBoysSvc(id)&&boysOverrideDuration)return boysOverrideDuration;
+  const s=SVCS.find(x=>x.id===id);
+  return s&&s.duration?Number(s.duration):30;
+}
+// مجموع سعر كل الخدمات المختارة
+function comboTotalPrice(){return selSvcs.reduce((sum,id)=>sum+svcUnitDisplayPrice(id),0);}
+// مجموع مدة الخدمات المختارة التي تشغل وقت الكرسي فعلياً (الشسوار وتنظيف البشرة لا تشغل وقت)
+function comboTotalDuration(){
+  const chairSvcs=selSvcs.filter(id=>!isShiswarSvc(id)&&!isSkinSvc(id));
+  if(chairSvcs.length===0)return 30;
+  return chairSvcs.reduce((sum,id)=>sum+svcUnitDisplayDuration(id),0);
+}
+// اسم العرض المجمّع لكل الخدمات المختارة
+function comboServiceName(){
+  return selSvcs.map(id=>{
+    const s=SVCS.find(x=>x.id===id);if(!s)return'';
+    if(isKidsSvc(id)&&kidsCount)return`${s.name} (${kidsCount} طفل)`;
+    if(isBoysSvc(id)&&boysCount)return`${s.name} (${boysCount} صبي)`;
+    return s.name;
+  }).filter(Boolean).join(' + ');
+}
+// معرّف الخدمة "الرئيسية" المستخدمة لحساب تعارض الأوقات في صفحة الإدارة (أطول خدمة تشغل وقت الكرسي)
+function comboPrimaryServiceId(){
+  const chairSvcs=selSvcs.filter(id=>!isShiswarSvc(id)&&!isSkinSvc(id));
+  const pool=chairSvcs.length?chairSvcs:selSvcs;
+  if(pool.length===0)return null;
+  return pool.reduce((best,id)=>svcUnitDisplayDuration(id)>svcUnitDisplayDuration(best)?id:best,pool[0]);
+}
+function renderComboBar(){
+  const bar=document.getElementById('comboBar');
+  if(!selSvcs.length){bar.classList.remove('show');return;}
+  bar.classList.add('show');
+  const list=document.getElementById('comboList');
+  list.innerHTML=selSvcs.map(id=>{
+    const s=SVCS.find(x=>x.id===id);if(!s)return'';
+    const extra=isKidsSvc(id)&&kidsCount?` — ${kidsCount} طفل`:isBoysSvc(id)&&boysCount?` — ${boysCount} صبي`:'';
+    return`<div class="combo-item"><span class="cn">${s.name}${extra}</span><span class="cp">${fmtPrice(svcUnitDisplayPrice(id))}</span><button type="button" class="combo-x" onclick="removeFromCombo('${id}')">✕</button></div>`;
+  }).join('');
+  document.getElementById('comboTotal').textContent=fmtPrice(comboTotalPrice());
+}
+function removeFromCombo(id){
+  removeSvcFromSelection(id);
+  selSlot=null;
+  renderSvcs();renderComboBar();renderSlots();updateBtn();
+}
 
+
+// كانت قيمة الأطفال قبل فتح النافذة — تستخدم لمعرفة هل الخدمة كانت مختارة أصلاً
+let kidsCountBeforeOpen=0;
 function openKidsModal(){
+  kidsCountBeforeOpen=kidsCount||0;
   const unitPrice=kidsUnitPrice();
   kidsSelectedTemp=kidsCount||0;
   const g=document.getElementById('kidsGrid');
@@ -450,9 +549,13 @@ function openKidsModal(){
   document.getElementById('kidsOverlay').style.display='flex';
 }
 
+// زر "إلغاء" بنافذة الأطفال — دايماً يشيل خدمة الطفل من الحجز (حتى لو كانت مختارة من قبل)
 function closeKidsModal(){
   document.getElementById('kidsOverlay').style.display='none';
-  if(!kidsCount){selSvc=null;kidsOverridePrice=0;kidsOverrideDuration=0;renderSvcs();}
+  selSvcs=selSvcs.filter(id=>!isKidsSvc(id));
+  kidsCount=0;kidsOverridePrice=0;kidsOverrideDuration=0;kidsCountBeforeOpen=0;
+  selSlot=null;
+  renderSvcs();renderComboBar();renderSlots();updateBtn();
 }
 
 function confirmKids(){
@@ -462,7 +565,7 @@ function confirmKids(){
   // نخزن السعر والمدة بمتغيرات منفصلة — ما نعدل SVCS
   kidsOverridePrice=kidsCount*unitPrice;
   kidsOverrideDuration=kidsCount*KIDS_DUR_PER;
-  selSvc=getKidsSvcId();
+  addSvcToSelection(getKidsSvcId());
   document.getElementById('kidsOverlay').style.display='none';
   selSlot=null;
   renderSvcs();
@@ -499,7 +602,10 @@ function openBoysModal(){
 
 function closeBoysModal(){
   document.getElementById('boysOverlay').style.display='none';
-  if(!boysCount){selSvc=null;boysOverridePrice=0;boysOverrideDuration=0;renderSvcs();}
+  selSvcs=selSvcs.filter(id=>!isBoysSvc(id));
+  boysCount=0;boysOverridePrice=0;boysOverrideDuration=0;
+  selSlot=null;
+  renderSvcs();renderComboBar();renderSlots();updateBtn();
 }
 
 function confirmBoys(){
@@ -508,7 +614,7 @@ function confirmBoys(){
   const unitPrice=boysUnitPrice();
   boysOverridePrice=boysCount*unitPrice;
   boysOverrideDuration=boysCount*BOYS_DUR_PER;
-  selSvc=getBoysSvcId();
+  addSvcToSelection(getBoysSvcId());
   document.getElementById('boysOverlay').style.display='none';
   selSlot=null;
   renderSvcs();
@@ -540,18 +646,17 @@ function getSvcDuration(serviceId){
   const svc=SVCS.find(s=>s.id===serviceId||s.name===serviceId);
   return svc&&svc.duration?Number(svc.duration):30;
 }
-// مدة حجز معين (يأخذ بعين الاعتبار الأطفال اليدوي)
+// مدة حجز معين (يأخذ بعين الاعتبار الأطفال اليدوي وتعدد الخدمات)
 function getBookingDuration(b){
+  if(b.comboDuration)return Number(b.comboDuration);
   if(b.kidsDuration)return Number(b.kidsDuration);
   if(b.kidsCount&&isKidsSvc(b.serviceId))return Number(b.kidsCount)*KIDS_DUR_PER;
   if(b.boysCount&&isBoysSvc(b.serviceId))return Number(b.boysCount)*BOYS_DUR_PER;
   return getSvcDuration(b.serviceId);
 }
-// مدة الخدمة المختارة حالياً
+// مدة الخدمات المختارة حالياً (مجموع كل الخدمات المختارة)
 function selDur(){
-  if(isKidsSvc(selSvc)&&kidsOverrideDuration)return kidsOverrideDuration;
-  if(isBoysSvc(selSvc)&&boysOverrideDuration)return boysOverrideDuration;
-  return selSvc?getSvcDuration(selSvc):30;
+  return selSvcs.length?comboTotalDuration():30;
 }
 
 // كل الأوقات التي يشغلها حجز (بناءً على مدته)
@@ -577,10 +682,11 @@ function isBooked(dk,s){
   return blocked.includes(s);
 }
 
-// هل يمكن حجز وقت معين للخدمة المختارة (أوقات كافية متتالية)
+// هل يمكن حجز وقت معين للخدمات المختارة (أوقات كافية متتالية)
 function canBook(dk,startSlot){
-  // الشسوار وتنظيف البشرة مفتوحة بأي وقت حتى لو محجوز
-  if(isShiswarSvc(selSvc)||isSkinSvc(selSvc))return !isPast(dk,startSlot);
+  // إذا كل الخدمات المختارة من نوع الشسوار/تنظيف البشرة فقط — مفتوحة بأي وقت حتى لو محجوز
+  const onlyFreeSvcs=selSvcs.length>0&&selSvcs.every(id=>isShiswarSvc(id)||isSkinSvc(id));
+  if(onlyFreeSvcs)return !isPast(dk,startSlot);
   const dur=selDur();
   const count=Math.max(1,Math.ceil(dur/60));
   const allS=slots();
@@ -611,8 +717,8 @@ function phoneBooked(p){const np=normPhone(p);return db.bookings.some(b=>!b.canc
 function allBooked(dk){
   const av=slots().filter(s=>!isPast(dk,s)&&!isBooked(dk,s));
   if(av.length===0)return true;
-  // لو ما في ولا وقت يكفي للخدمة المختارة
-  if(selSvc)return!av.some(s=>canBook(dk,s));
+  // لو ما في ولا وقت يكفي للخدمات المختارة
+  if(selSvcs.length)return!av.some(s=>canBook(dk,s));
   return false;
 }
 
@@ -636,9 +742,14 @@ async function load(){
           db.services=loaded;
         }
       }
-      // لو selSvc محجوز ولكن الخدمة انمسحت — نصفّر الاختيار
-      if(selSvc&&!SVCS.find(s=>s.id===selSvc)){
-        selSvc=null;selSlot=null;kidsCount=0;kidsOverridePrice=0;kidsOverrideDuration=0;boysCount=0;boysOverridePrice=0;boysOverrideDuration=0;
+      // لو في خدمات مختارة انمسحت من فايربيس — نشيلها من الاختيار
+      if(selSvcs.length){
+        const stillExists=selSvcs.filter(id=>SVCS.find(s=>s.id===id));
+        if(stillExists.length!==selSvcs.length){
+          selSvcs=stillExists;selSlot=null;
+          if(!selSvcs.some(isKidsSvc)){kidsCount=0;kidsOverridePrice=0;kidsOverrideDuration=0;}
+          if(!selSvcs.some(isBoysSvc)){boysCount=0;boysOverridePrice=0;boysOverrideDuration=0;}
+        }
       }
       if(r.heroPhoto){
         document.documentElement.style.setProperty('--hero-img',`url('${r.heroPhoto}')`);
@@ -668,13 +779,12 @@ function updateBtn(){
   if(name&&!validName(name)){ni.classList.add('err');ne.style.display='block';}else{ni.classList.remove('err');ne.style.display='none';}
   if(phone&&!validPhone(phone)){pi.classList.add('err');pe.style.display='block';}else{pi.classList.remove('err');pe.style.display='none';}
   const btn=document.getElementById('bookBtn');
-  const ok=name&&phone&&validName(name)&&validPhone(phone)&&selSvc&&selDateKey&&selSlot;
+  const ok=name&&phone&&validName(name)&&validPhone(phone)&&selSvcs.length&&selDateKey&&selSlot;
   btn.disabled=!ok;
   if(ok){
-    const s=SVCS.find(x=>x.id===selSvc);
-    const displayPrice=isKidsSvc(selSvc)&&kidsOverridePrice?kidsOverridePrice:isBoysSvc(selSvc)&&boysOverridePrice?boysOverridePrice:(s?s.price:0);
-    const kidsInfo=isKidsSvc(selSvc)&&kidsCount?` • ${kidsCount} طفل`:isBoysSvc(selSvc)&&boysCount?` • ${boysCount} صبي`:'';
-    btn.textContent=`احجز — ${selSlot}${kidsInfo} • ${fmtPrice(displayPrice)}`;
+    const displayPrice=comboTotalPrice();
+    const countLabel=selSvcs.length>1?` (${selSvcs.length} خدمات)`:'';
+    btn.textContent=`احجز — ${selSlot}${countLabel} • ${fmtPrice(displayPrice)}`;
   }
   else btn.textContent='اختار الخدمة واليوم والوقت';
 }
@@ -698,25 +808,35 @@ function renderSvcs(){
   g.style.gridTemplateColumns='';
   SVCS.forEach(s=>{
     const b=document.createElement('button');
-    b.className='svc-btn'+(selSvc===s.id?' sel':'');
+    const isSel=selSvcs.includes(s.id);
+    b.className='svc-btn'+(isSel?' sel':'');
     const isKids=isKidsSvc(s.id);
     const isBoys=isBoysSvc(s.id);
     const displayPrice=isKids&&kidsOverridePrice?kidsOverridePrice:isBoys&&boysOverridePrice?boysOverridePrice:s.price;
     const displayDur=isKids&&kidsOverrideDuration?kidsOverrideDuration:isBoys&&boysOverrideDuration?boysOverrideDuration:(s.duration||30);
     const kidsLabel=isKids&&kidsCount?`<span style="font-size:10px;color:var(--gold);margin-top:2px;display:block">👦 ${kidsCount} طفل</span>`:isBoys&&boysCount?`<span style="font-size:10px;color:var(--gold);margin-top:2px;display:block">🧒 ${boysCount} صبي</span>`:'';
-    b.innerHTML=`<span class="svc-name">${s.name}</span><span class="svc-price">${fmtPrice(displayPrice)}</span>${kidsLabel}<span style="font-size:9px;color:var(--muted);margin-top:2px;display:block">⏱ ${durLabel(displayDur)}</span>`;
+    b.innerHTML=`<span class="svc-check">✓</span><span class="svc-name">${s.name}</span><span class="svc-price">${fmtPrice(displayPrice)}</span>${kidsLabel}<span style="font-size:9px;color:var(--muted);margin-top:2px;display:block">⏱ ${durLabel(displayDur)}</span>`;
     b.onclick=()=>{
+      if(isSel){
+        if(isKids){openKidsModal();return;}
+        if(isBoys){openBoysModal();return;}
+        // الخدمة مختارة فعلاً — اضغط لإزالتها
+        removeFromCombo(s.id);
+        return;
+      }
       if(isKids){
         openKidsModal();
-      } else if(isBoysSvc(s.id)){
+      } else if(isBoys){
         openBoysModal();
       } else {
-        kidsCount=0;boysCount=0;kidsOverridePrice=0;kidsOverrideDuration=0;boysOverridePrice=0;boysOverrideDuration=0;
-        selSvc=s.id;selSlot=null;renderSvcs();renderSlots();updateBtn();
+        addSvcToSelection(s.id);
+        selSlot=null;
+        renderSvcs();renderComboBar();renderSlots();updateBtn();
       }
     };
     g.appendChild(b);
   });
+  renderComboBar();
 }
 
 function renderDays(){
@@ -737,22 +857,21 @@ function renderSlots(){
   if(!selDateKey){wrap.style.display='none';return;}
   wrap.style.display='block';
   const dur=selDur();
-  const lbl=selSvc?` — مدة الخدمة: ${durLabel(dur)}`:'';
-  document.getElementById('slotsLabel').textContent=`الأوقات — ${selDateLabel}${lbl}`;
+  const lbl=selSvcs.length?` — مدة الخدمة: ${durLabel(dur)}`:'';
+  document.getElementById('slotsLabel').textContent=`اختر الوقت المناسب لك — ${selDateLabel}${lbl}`;
   const g=document.getElementById('slotsGrid');g.innerHTML='';
   const full=allBooked(selDateKey);
   document.getElementById('allBkdBox').style.display=full?'block':'none';
   document.getElementById('waitBtnWrap').style.display=full?'block':'none';
   document.getElementById('bookBtnWrap').style.display=full?'none':'block';
-  // نعرض الأوقات بفرق يساوي مدة الخدمة (ساعة = كل ساعة)
-  const step=selSvc&&!isShiswarSvc(selSvc)?Math.max(1,Math.ceil(dur/60)):1;
+  // إذا كل الخدمات المختارة من نوع الشسوار/تنظيف البشرة فقط — لا تشغل وقت كرسي
+  const onlyFreeSvcs=selSvcs.length>0&&selSvcs.every(id=>isShiswarSvc(id)||isSkinSvc(id));
+  // نعرض كل وقت متاح فعلياً (بدون تخطي خانات) — المهم إنه يكفي لمدة الخدمة المختارة
   const allS=slots();
-  allS.forEach((s,idx)=>{
-    // نعرض بس كل step سلوت — إلا لو في حجوز يكسر الترتيب
-    if(step>1&&idx%step!==0)return;
+  allS.forEach((s)=>{
     const past=isPast(selDateKey,s);
-    const bkd=(isShiswarSvc(selSvc)||isSkinSvc(selSvc))?false:isBooked(selDateKey,s);
-    const notEnough=!past&&!bkd&&selSvc&&!canBook(selDateKey,s);
+    const bkd=onlyFreeSvcs?false:isBooked(selDateKey,s);
+    const notEnough=!past&&!bkd&&selSvcs.length&&!canBook(selDateKey,s);
     if(notEnough)return;
     const b=document.createElement('button');
     if(bkd){
@@ -774,16 +893,36 @@ async function doBook(){
   const phone=document.getElementById('phoneInp').value.trim();
   if(!validName(name)){toast('الاسم يجب 3 أحرف على الأقل');return;}
   if(!validPhone(phone)){toast('رقم الهاتف غير صحيح');return;}
-  if(!selSvc||!selDateKey||!selSlot)return;
+  if(!selSvcs.length||!selDateKey||!selSlot)return;
   if(phoneBooked(phone)){toast('هذا الرقم عنده حجز مسبق!');return;}
   const btn=document.getElementById('bookBtn');
   btn.disabled=true;btn.textContent='⏳ جاري الحجز...';busy=true;
   await load();
-  if(!isShiswarSvc(selSvc)&&isBooked(selDateKey,selSlot)){toast('هذا الوقت انحجز للتو!');renderSlots();btn.disabled=false;updateBtn();busy=false;return;}
+  const onlyFreeSvcs=selSvcs.every(id=>isShiswarSvc(id)||isSkinSvc(id));
+  if(!onlyFreeSvcs&&isBooked(selDateKey,selSlot)){toast('هذا الوقت انحجز للتو!');renderSlots();btn.disabled=false;updateBtn();busy=false;return;}
   if(phoneBooked(phone)){toast('هذا الرقم عنده حجز مسبق!');btn.disabled=false;updateBtn();busy=false;return;}
-  const svc=SVCS.find(x=>x.id===selSvc);
-  const finalPrice=isKidsSvc(selSvc)&&kidsOverridePrice?kidsOverridePrice:isBoysSvc(selSvc)&&boysOverridePrice?boysOverridePrice:(svc?svc.price:0);
-  const b={id:'ss'+Date.now(),name,phone,service:svc.name+(isKidsSvc(selSvc)&&kidsCount?` (${kidsCount} طفل)`:isBoysSvc(selSvc)&&boysCount?` (${boysCount} صبي)`:''),serviceId:svc.id,price:finalPrice,kidsCount:isKidsSvc(selSvc)?kidsCount:0,kidsDuration:isKidsSvc(selSvc)?kidsOverrideDuration:0,boysCount:isBoysSvc(selSvc)?boysCount:0,boysDuration:isBoysSvc(selSvc)?boysOverrideDuration:0,dateKey:selDateKey,dateLabel:selDateLabel,slot:selSlot,day:selDateLabel,createdAt:Date.now(),bookedAt:new Date().toLocaleTimeString('ar-IQ'),reminded:false,cancelled:false,note:''};
+  const primaryId=comboPrimaryServiceId();
+  const primarySvc=SVCS.find(x=>x.id===primaryId)||SVCS.find(x=>x.id===selSvcs[0]);
+  const finalPrice=comboTotalPrice();
+  const finalDuration=comboTotalDuration();
+  const finalName=comboServiceName();
+  const kidsSel=selSvcs.find(isKidsSvc);
+  const boysSel=selSvcs.find(isBoysSvc);
+  const b={
+    id:'ss'+Date.now(),name,phone,
+    service:finalName,
+    serviceId:primarySvc?primarySvc.id:selSvcs[0],
+    serviceIds:[...selSvcs],
+    comboDuration:finalDuration,
+    price:finalPrice,
+    kidsCount:kidsSel?kidsCount:0,
+    kidsDuration:kidsSel?kidsOverrideDuration:0,
+    boysCount:boysSel?boysCount:0,
+    boysDuration:boysSel?boysOverrideDuration:0,
+    dateKey:selDateKey,dateLabel:selDateLabel,slot:selSlot,day:selDateLabel,
+    createdAt:Date.now(),bookedAt:new Date().toLocaleTimeString('ar-IQ'),
+    reminded:false,cancelled:false,note:''
+  };
   db.bookings.push(b);
   try{
     await save();
@@ -791,11 +930,11 @@ async function doBook(){
     try{await fetch('https://ntfy.sh/sunshave-vip-2025?title='+encodeURIComponent('🔔 حجز جديد — Sun Shave')+'&priority=high&tags=scissors',{method:'POST',mode:'no-cors',body:`👤 ${b.name}\n✂️ ${b.service}\n🕐 ${b.slot}\n📅 ${b.day||b.dateKey}\n📞 ${b.phone}`});}catch{}
 
     document.getElementById('s-name').textContent=name;
-    document.getElementById('s-svc').textContent=svc.name;
+    document.getElementById('s-svc').textContent=finalName;
     document.getElementById('s-date').textContent=selDateLabel;
     document.getElementById('s-slot').textContent=selSlot;
     document.getElementById('s-phone').textContent=phone;
-    document.getElementById('s-price').textContent=fmtPrice(svc.price);
+    document.getElementById('s-price').textContent=fmtPrice(finalPrice);
     document.getElementById('formView').classList.add('hidden');
     document.getElementById('successView').classList.remove('hidden');
   }catch{db.bookings.pop();btn.disabled=false;updateBtn();toast('فشل الحجز، حاول مرة ثانية');}
@@ -818,7 +957,7 @@ async function doWaitlist(){
 }
 
 function resetForm(){
-  selSvc=null;selDateKey=null;selDateLabel=null;selSlot=null;kidsCount=0;kidsOverridePrice=0;kidsOverrideDuration=0;boysCount=0;boysOverridePrice=0;boysOverrideDuration=0;
+  selSvcs=[];selDateKey=null;selDateLabel=null;selSlot=null;kidsCount=0;kidsOverridePrice=0;kidsOverrideDuration=0;boysCount=0;boysOverridePrice=0;boysOverrideDuration=0;
   document.getElementById('nameInp').value='';
   document.getElementById('phoneInp').value='';
   document.getElementById('successView').classList.add('hidden');
@@ -841,6 +980,7 @@ function resetForm(){
   window.doBook=doBook;window.doWaitlist=doWaitlist;window.resetForm=resetForm;
   window.confirmKids=confirmKids;window.closeKidsModal=closeKidsModal;
   window.confirmBoys=confirmBoys;window.closeBoysModal=closeBoysModal;
+  window.removeFromCombo=removeFromCombo;
   // تحديث تلقائي كل 30 ثانية — يعرض الأوقات المتاحة فوراً بعد الإلغاء
   setInterval(async()=>{
     try{
