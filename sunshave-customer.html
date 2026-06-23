@@ -235,7 +235,7 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);min-he
       </div>
       <div class="inp-wrap">
         <label class="inp-lbl">رقم الواتساب</label>
-        <input class="inp" id="phoneInp" placeholder="07XXXXXXXXX" maxlength="11" type="tel"/>
+        <input class="inp" id="phoneInp" placeholder="07XXXXXXXXX أو 964XXXXXXXXX+" maxlength="16" type="tel"/>
         <div class="err-msg" id="phoneErr">أدخل رقم عراقي صحيح</div>
       </div>
     </div>
@@ -890,7 +890,7 @@ function renderSlots(){
 async function doBook(){
   if(busy)return;
   const name=document.getElementById('nameInp').value.trim();
-  const phone=document.getElementById('phoneInp').value.trim();
+  const phone=normPhone(document.getElementById('phoneInp').value.trim());
   if(!validName(name)){toast('الاسم يجب 3 أحرف على الأقل');return;}
   if(!validPhone(phone)){toast('رقم الهاتف غير صحيح');return;}
   if(!selSvcs.length||!selDateKey||!selSlot)return;
@@ -943,7 +943,7 @@ async function doBook(){
 
 async function doWaitlist(){
   const name=document.getElementById('nameInp').value.trim();
-  const phone=document.getElementById('phoneInp').value.trim();
+  const phone=normPhone(document.getElementById('phoneInp').value.trim());
   if(!validName(name)){toast('أدخل اسمك');return;}
   if(!validPhone(phone)){toast('رقم الهاتف غير صحيح');return;}
   if(!selDateKey){toast('اختار اليوم أولاً');return;}
