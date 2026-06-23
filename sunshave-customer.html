@@ -976,7 +976,7 @@ function resetForm(){
   document.getElementById('app').style.display='block';
   renderSvcs();renderDays();
   document.getElementById('nameInp').addEventListener('input',updateBtn);
-  document.getElementById('phoneInp').addEventListener('input',updateBtn);
+  document.getElementById('phoneInp').addEventListener('input',function(){const norm=normPhone(this.value);if(norm!==this.value){this.value=norm;}updateBtn();});
   window.doBook=doBook;window.doWaitlist=doWaitlist;window.resetForm=resetForm;
   window.confirmKids=confirmKids;window.closeKidsModal=closeKidsModal;
   window.confirmBoys=confirmBoys;window.closeBoysModal=closeBoysModal;
