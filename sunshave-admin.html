@@ -533,7 +533,7 @@ function dl(d){return`${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}
 function fp(p){return Number(p).toLocaleString('ar-IQ')+' د.ع';}
 function next7(){const r=[];const t=new Date();t.setHours(0,0,0,0);for(let i=0;i<7;i++){const d=new Date(t);d.setDate(t.getDate()+i);r.push(d);}return r;}
 function todayK(){return dk(new Date());}
-function normPhone(p){const c=p.replace(/\D/g,'');return c.startsWith('964')?'0'+c.slice(3):c;}
+function normPhone(p){let c=p.replace(/\D/g,'');if(c.startsWith('00964'))c='0'+c.slice(5);else if(c.startsWith('964'))c='0'+c.slice(3);return c;}
 function wh(){return data.workHours||{start:"5:00 م",end:"11:00 م"};}
 function slots(){const w=wh();const si=ALL_SLOTS.indexOf(w.start);const ei=ALL_SLOTS.indexOf(w.end);if(si<0||ei<0)return["5:00 م","6:00 م","7:00 م","8:00 م","9:00 م","10:00 م","11:00 م"];return ei>=si?ALL_SLOTS.slice(si,ei+1):[...ALL_SLOTS.slice(si),...ALL_SLOTS.slice(0,ei+1)];}
 function slotDateTime(dateKey,slot){
