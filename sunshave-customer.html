@@ -848,10 +848,12 @@ function normPhone(p){let c=p.replace(/\D/g,'');if(c.startsWith('00964'))c='0'+c
 function validPhone(p){return/^07[3-9]\d{8}$/.test(normPhone(p));}
 function validName(n){return n.trim().length>=3&&/[\u0600-\u06FFa-zA-Z]/.test(n);}
 function slots(){const wh=db.workHours||{start:"5:00 م",end:"11:00 م"};const si=ALL_SLOTS.indexOf(wh.start);const ei=ALL_SLOTS.indexOf(wh.end);if(si<0||ei<0)return["5:00 م","6:00 م","7:00 م","8:00 م","9:00 م","10:00 م","11:00 م"];return ei>=si?ALL_SLOTS.slice(si,ei+1):[...ALL_SLOTS.slice(si),...ALL_SLOTS.slice(0,ei+1)];}
+function workCrossesMidnight(){const wh=db.workHours||{start:"5:00 م",end:"11:00 م"};const sh=SLOT_H[wh.start];return sh!==undefined&&sh>=12;}
 function slotDateTime(dk,s){
   const h=SLOT_H[s];if(h===undefined)return null;
   const hFloor=Math.floor(h);const mins=h%1!==0?30:0;
-  const isMidnight=s&&s.includes('ص')&&h<12;
+  // ساعات الصباح الباكر (ص) تنتمي لليوم التالي فقط إذا الدوام يبدأ مساءً ويتخطى منتصف الليل
+  const isMidnight=s&&s.includes('ص')&&h<12&&workCrossesMidnight();
   const base=new Date(dk+'T00:00:00');
   if(isMidnight)base.setDate(base.getDate()+1);
   base.setHours(hFloor,mins,0,0);
@@ -1225,11 +1227,11 @@ async function doBook(){
   if(phoneBooked(phone)){toast('هذا الرقم عنده حجز مسبق!');return;}
   const btn=document.getElementById('bookBtn');
   btn.disabled=true;btn.textContent='⏳ جاري الحجز...';busy=true;
-  const loadOk=await load();
-  if(!loadOk){toast('تعذّر تحديث البيانات، تأكد من الاتصال بالنت وحاول مرة ثانية');btn.disabled=false;updateBtn();busy=false;return;} // فشل التحديث = نوقف الحجز بدل ما نكمل ببيانات قديمة
+  // ملاحظة أداء: شلنا استدعاء load() المكرر اللي كان يصير هنا قبل الترانزاكشن —
+  // كان يعمل قراءة كاملة إضافية من فايربيس قبل الحجز بلا داعي، لأن bookWithTransaction
+  // أدناه أصلاً يقرا أحدث نسخة من السيرفر ويتحقق من التعارض بعملية ذرية واحدة.
+  // هذا كان يضاعف زمن الانتظار بعد الضغط على "احجز" (رحلة شبكة إضافية كاملة).
   const onlyFreeSvcs=selSvcs.every(id=>isShiswarSvc(id)||isSkinSvc(id));
-  if(!onlyFreeSvcs&&isBooked(selDateKey,selSlot)){toast('هذا الوقت انحجز للتو!');renderSlots();btn.disabled=false;updateBtn();busy=false;return;}
-  if(phoneBooked(phone)){toast('هذا الرقم عنده حجز مسبق!');btn.disabled=false;updateBtn();busy=false;return;}
   const primaryId=comboPrimaryServiceId();
   const primarySvc=SVCS.find(x=>x.id===primaryId)||SVCS.find(x=>x.id===selSvcs[0]);
   const finalPrice=comboTotalPrice();

@@ -557,12 +557,17 @@ document.addEventListener('keydown',e=>{if(document.getElementById('pinScreen').
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, runTransaction, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const _app=initializeApp({apiKey:"AIzaSyDJiUW6zjEeBV2Aag8N8Fga13SEIlAr8AM",authDomain:"shams-salon.firebaseapp.com",projectId:"shams-salon",storageBucket:"shams-salon.firebasestorage.app",messagingSenderId:"942915305459",appId:"1:942915305459:web:1f2a6c0d6afa3c2dbe1c86"});
 const _db=getFirestore(_app);
 const DB=doc(_db,"shams","data");
 const storeRef=doc(_db,"shams","store");
 const PIN_DOC=doc(_db,"shams","pin");
+// وثيقة منفصلة للأرشيف والمصاريف — قبل كان كل شي (حجوزات + أرشيف + مصاريف) بوثيقة وحدة
+// فكل عملية بسيطة (إلغاء حجز، حفظ ملاحظة...) كانت ترفع/تنزل كل السجل التاريخي معها،
+// وبمرور الوقت (كل ما تتراكم بيانات أكثر) يصير كل شي أبطأ تدريجياً. فصلناها لتوثيق مستقل
+// يتحمّل فقط لما نحتاجه فعلاً، فتصير العمليات اليومية (حجز/إلغاء/ملاحظة) خفيفة وسريعة دائماً.
+const ARCHIVE_DB=doc(_db,"shams","archive");
 
 // دوال PIN عبر Firebase
 window._fbGetPin=async function(){
@@ -617,11 +622,12 @@ function todayK(){return dk(new Date());}
 function normPhone(p){let c=p.replace(/\D/g,'');if(c.startsWith('00964'))c='0'+c.slice(5);else if(c.startsWith('964'))c='0'+c.slice(3);return c;}
 function wh(){return data.workHours||{start:"5:00 م",end:"11:00 م"};}
 function slots(){const w=wh();const si=ALL_SLOTS.indexOf(w.start);const ei=ALL_SLOTS.indexOf(w.end);if(si<0||ei<0)return["5:00 م","6:00 م","7:00 م","8:00 م","9:00 م","10:00 م","11:00 م"];return ei>=si?ALL_SLOTS.slice(si,ei+1):[...ALL_SLOTS.slice(si),...ALL_SLOTS.slice(0,ei+1)];}
+function workCrossesMidnight(){const sh=SH[wh().start];return sh!==undefined&&sh>=12;}
 function slotDateTime(dateKey,slot){
   const h=SH[slot];if(h===undefined)return null;
   const hFloor=Math.floor(h);const mins=h%1!==0?30:0;
-  // ساعات الصباح الباكر (ص) تنتمي لليوم التالي
-  const isMidnight=h>=0&&h<12&&slot&&slot.includes('ص');
+  // ساعات الصباح الباكر (ص) تنتمي لليوم التالي فقط إذا الدوام يبدأ مساءً ويتخطى منتصف الليل
+  const isMidnight=h>=0&&h<12&&slot&&slot.includes('ص')&&workCrossesMidnight();
   const base=new Date(dateKey+'T00:00:00');
   if(isMidnight)base.setDate(base.getDate()+1);
   base.setHours(hFloor,mins,0,0);
@@ -664,6 +670,7 @@ function monthLabel(k){const[y,m]=k.split('-');return`${MONTHS[parseInt(m)-1]} $
 async function load(){
   try{
     const snap=await getDoc(DB);
+    let legacyArchived=null,legacyExpenses=null;
     if(snap.exists()){const r=snap.data();
       const defaultSvcs=[
         {id:'svc1',name:'حلاقة كاملة',price:20000,icon:'✂️'},
@@ -680,17 +687,52 @@ async function load(){
         disabledDays:typeof r.disabledDays==='string'?JSON.parse(r.disabledDays):(r.disabledDays||[]),
         blockedSlots:typeof r.blockedSlots==='string'?JSON.parse(r.blockedSlots):(r.blockedSlots||{}),
         recurringBlockedSlots:typeof r.recurringBlockedSlots==='string'?JSON.parse(r.recurringBlockedSlots):(r.recurringBlockedSlots||{}),
-        archivedBookings:typeof r.archivedBookings==='string'?JSON.parse(r.archivedBookings):(r.archivedBookings||[]),
-        expenses:typeof r.expenses==='string'?JSON.parse(r.expenses):(r.expenses||[]),
+        archivedBookings:[],
+        expenses:[],
         workHours:{start:r.workHoursStart||"5:00 م",end:r.workHoursEnd||"11:00 م"},
         services:typeof r.services==='string'?(JSON.parse(r.services)):(Array.isArray(r.services)?r.services:defaultSvcs),
         heroPhoto:r.heroPhoto||''
       };
+      // ترحيل بيانات قديمة: لو الوثيقة الرئيسية لسا فيها أرشيف/مصاريف من النسخة القديمة
+      // (قبل الفصل)، نلتقطها هنا مرة وحدة عشان ننقلها للوثيقة المنفصلة تحت.
+      if(r.archivedBookings!==undefined)legacyArchived=typeof r.archivedBookings==='string'?JSON.parse(r.archivedBookings):(r.archivedBookings||[]);
+      if(r.expenses!==undefined)legacyExpenses=typeof r.expenses==='string'?JSON.parse(r.expenses):(r.expenses||[]);
     }
-    cleanOld();
+    // الأرشيف والمصاريف الآن بوثيقة مستقلة خفيفة — نقرأها هنا لأن صفحة الإدارة تعرضها
+    // بتبويب التقارير، لكنها لا تُحمَّل أبداً من صفحة الزبون ولا تُرفع مع كل عملية يومية.
+    try{
+      const asnap=await getDoc(ARCHIVE_DB);
+      if(asnap.exists()){
+        const ar=asnap.data();
+        data.archivedBookings=typeof ar.archivedBookings==='string'?JSON.parse(ar.archivedBookings):(ar.archivedBookings||[]);
+        data.expenses=typeof ar.expenses==='string'?JSON.parse(ar.expenses):(ar.expenses||[]);
+      }
+    }catch{}
+    if(legacyArchived||legacyExpenses){
+      // ندمج القديم مع الجديد (بدون تكرار حسب id) ونحفظ بالوثيقة الجديدة، وبعدين نمسحه
+      // نهائياً من الوثيقة الرئيسية عشان ما يضل يترفع مع كل تحميل لصفحة الزبون بعد اليوم.
+      if(legacyArchived&&legacyArchived.length){
+        const known=new Set(data.archivedBookings.map(b=>b.id));
+        data.archivedBookings=[...data.archivedBookings,...legacyArchived.filter(b=>!known.has(b.id))];
+      }
+      if(legacyExpenses&&legacyExpenses.length){
+        const known=new Set(data.expenses.map(e=>e.id));
+        data.expenses=[...data.expenses,...legacyExpenses.filter(e=>!known.has(e.id))];
+      }
+      await saveArchive();
+      try{await setDoc(DB,{archivedBookings:deleteField(),expenses:deleteField()},{merge:true});}catch{}
+    }
+    await cleanOld();
     if(materializeRecurringBlocks())await save();
     lastSync=new Date();syncBar(true);
   }catch(e){syncBar(false);toast('خطأ في الاتصال');}
+}
+// حفظ الأرشيف والمصاريف بوثيقتهم المستقلة فقط — لا تلمس حجوزات اليوم، فتصير خفيفة وسريعة
+async function saveArchive(){
+  await setDoc(ARCHIVE_DB,{
+    archivedBookings:JSON.stringify(data.archivedBookings||[]),
+    expenses:JSON.stringify(data.expenses||[])
+  },{merge:true});
 }
 async function save(removedIds){
   // removedIds: أي معرفات حجز/انتظار حذفناها بهذا الاستدعاء (إلغاء، تخصيص كخدمة تمت، إلخ)
@@ -718,18 +760,21 @@ async function save(removedIds){
     const knownWIds=new Set(mergedWaitlist.map(w=>w.id));
     const localOnlyNewW=localWaitlist.filter(w=>!knownWIds.has(w.id)&&!removedSet.has(w.id));
     const finalWaitlist=[...mergedWaitlist,...localOnlyNewW];
-    transaction.set(DB,{bookings:JSON.stringify(finalBookings),waitlist:JSON.stringify(finalWaitlist),disabledDays:JSON.stringify(data.disabledDays||[]),blockedSlots:JSON.stringify(data.blockedSlots||{}),recurringBlockedSlots:JSON.stringify(data.recurringBlockedSlots||{}),archivedBookings:JSON.stringify(data.archivedBookings||[]),expenses:JSON.stringify(data.expenses||[]),services:JSON.stringify(data.services||[]),workHoursStart:(data.workHours&&data.workHours.start)||"5:00 م",workHoursEnd:(data.workHours&&data.workHours.end)||"11:00 م",heroPhoto:data.heroPhoto||''},{merge:true});
+    // ملاحظة أداء: ما نبعث archivedBookings/expenses هنا بعد الآن — صارت بوثيقة مستقلة
+    // (ARCHIVE_DB) تُحفظ عبر saveArchive() فقط لما تتغير فعلاً. هذا يخلي كل عملية يومية
+    // (إلغاء، ملاحظة، إعدادات) سريعة وما تكبر مع الوقت.
+    transaction.set(DB,{bookings:JSON.stringify(finalBookings),waitlist:JSON.stringify(finalWaitlist),disabledDays:JSON.stringify(data.disabledDays||[]),blockedSlots:JSON.stringify(data.blockedSlots||{}),recurringBlockedSlots:JSON.stringify(data.recurringBlockedSlots||{}),services:JSON.stringify(data.services||[]),workHoursStart:(data.workHours&&data.workHours.start)||"5:00 م",workHoursEnd:(data.workHours&&data.workHours.end)||"11:00 م",heroPhoto:data.heroPhoto||''},{merge:true});
     data.bookings=finalBookings;
     data.waitlist=finalWaitlist;
   });
   lastSync=new Date();syncBar(true);
 }
-function cleanOld(){
+async function cleanOld(){
   const t=todayK();
   const toRemove=data.bookings.filter(b=>{
     if(!b.dateKey)return true;
     const h=SH[b.slot];
-    const isMidnight=b.slot&&b.slot.includes('ص')&&h!==undefined&&h<12;
+    const isMidnight=b.slot&&b.slot.includes('ص')&&h!==undefined&&h<12&&workCrossesMidnight();
     if(isMidnight){const nd=new Date(b.dateKey+'T00:00:00');nd.setDate(nd.getDate()+1);return dk(nd)<t;}
     return b.dateKey<t;
   });
@@ -738,6 +783,7 @@ function cleanOld(){
     if(!data.archivedBookings)data.archivedBookings=[];
     toRemove.forEach(b=>{if(!data.archivedBookings.find(a=>a.id===b.id))data.archivedBookings.push({...b,autoArchived:true,completedAt:b.completedAt||Date.now()});});
     data.bookings=data.bookings.filter(b=>!toRemove.find(r=>r.id===b.id));
+    try{await saveArchive();}catch{}
   }
 }
 async function loadAndRender(){await load();render();}
@@ -761,7 +807,7 @@ function renderBookings(){
   document.getElementById('bulkWaWrap').style.display=selDateKey!=='all'?'block':'none';
   let filtered=selDateKey==='all'?active:active.filter(b=>b.dateKey===selDateKey);
   if(q)filtered=filtered.filter(b=>(b.name||'').toLowerCase().includes(q)||(b.phone||'').replace(/\D/g,'').includes(q.replace(/\D/g,'')));
-  const sorted=[...filtered].sort((a,b)=>{if(a.dateKey!==b.dateKey)return(a.dateKey||'').localeCompare(b.dateKey||'');return ALL_SLOTS.indexOf(a.slot)-ALL_SLOTS.indexOf(b.slot);});
+  const sorted=[...filtered].sort((a,b)=>{if(a.dateKey!==b.dateKey)return(a.dateKey||'').localeCompare(b.dateKey||'');return(slotDateTime(a.dateKey,a.slot)||new Date(0))-(slotDateTime(b.dateKey,b.slot)||new Date(0));});
   const list=document.getElementById('cardsList');
   if(!sorted.length){list.innerHTML=`<div class="empty"><div class="empty-icon">✂️</div><p>${q?'لا نتائج':'ما في حجوزات'}</p></div>`;return;}
   const waI=`<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>`;
@@ -803,7 +849,7 @@ async function remind(id){
 }
 async function cancelB(id){if(!confirm('إلغاء هذا الحجز؟'))return;const b=data.bookings.find(x=>x.id===id);if(!b)return;const waWin=window.open('','_blank');const bk=[...data.bookings];data.bookings=data.bookings.filter(x=>x.id!==id);try{await save([id]);render();toast(`🗑️ ألغي موعد ${b.name}`);const msg=`مرحبا ${b.name} 👋\n\n❌ نأسف، تم إلغاء حجزكم في صالون شمس\n✂️ ${b.service}\n📅 ${b.dateLabel||b.day}\n⏰ ${b.slot}\n\nيمكنكم إعادة الحجز بوقت آخر يناسبكم 🙏`;openWA(b.phone,msg,waWin);}catch{data.bookings=bk;toast('❌ فشل');if(waWin&&!waWin.closed)waWin.close();}}
 async function cancelLate(id){const b=data.bookings.find(x=>x.id===id);if(!b)return;const m=lateMin(b);const waWin=window.open('','_blank');const bk=[...data.bookings];data.bookings=data.bookings.filter(x=>x.id!==id);try{await save([id]);render();toast(`⛔ ألغي حجز ${b.name} — تأخر ${m} دقيقة`);const msg=`⚠️ نعتذر، تم إلغاء حجزكم بسبب التأخر عن الموعد المحدد لأكثر من 15 دقيقة، وذلك حرصًا على الالتزام بمواعيد جميع الزبائن.\nيسعدنا استقبالكم في أي وقت آخر، ويمكنكم حجز موعد جديد بكل سهولة.\nشكرًا لتفهمكم، ونتطلع لخدمتكم دائمًا. 🌹`;openWA(b.phone,msg,waWin);}catch{data.bookings=bk;toast('❌ فشل');if(waWin&&!waWin.closed)waWin.close();}}
-async function markDone(id){const b=data.bookings.find(x=>x.id===id);if(!b)return;if(!confirm(`تأكيد انتهاء خدمة ${b.name}؟`))return;data.bookings=data.bookings.filter(x=>x.id!==id);if(!data.archivedBookings)data.archivedBookings=[];data.archivedBookings.push({...b,completedAt:Date.now(),status:'done'});try{await save([id]);render();toast(`✅ تمت خدمة ${b.name}`);}catch{data.bookings.push(b);data.archivedBookings.pop();toast('❌ فشل');}}
+async function markDone(id){const b=data.bookings.find(x=>x.id===id);if(!b)return;if(!confirm(`تأكيد انتهاء خدمة ${b.name}؟`))return;data.bookings=data.bookings.filter(x=>x.id!==id);if(!data.archivedBookings)data.archivedBookings=[];data.archivedBookings.push({...b,completedAt:Date.now(),status:'done'});try{await save([id]);await saveArchive();render();toast(`✅ تمت خدمة ${b.name}`);}catch{data.bookings.push(b);data.archivedBookings.pop();toast('❌ فشل');}}
 async function saveNote(id){const b=data.bookings.find(x=>x.id===id);if(!b)return;const inp=document.getElementById('note_'+id);if(!inp)return;b.note=inp.value.trim();await save();toast('💾 تم حفظ الملاحظة');}
 function sendWait(id){const b=data.bookings.find(x=>x.id===id);if(!b)return;const w=waitInfo(id);if(!w){toast('هذا الحجز مو اليوم');return;}const msg=w.before===0?`السلام عليكم ${b.name} 👋\n\n✂️ دورك الآن في Sun Shave!\n\nتفضل مباشرة ☀️`:`السلام عليكم ${b.name} 👋\n\n⏳ وقت انتظارك التقديري:\n👤 في قبلك: ${w.before} زبون\n⏱️ ~${w.mins} دقيقة\n\nSun Shave ☀️`;openWA(b.phone,msg);toast(`📲 أُرسل لـ ${b.name}`);}
 async function clearAll(){
@@ -853,9 +899,9 @@ function addExp(){
   const n=document.getElementById('expN').value.trim();const a=parseInt(document.getElementById('expA').value)||0;const m=document.getElementById('expM').value;
   if(!n){toast('أدخل اسم الصرفية');return;}if(!a){toast('أدخل المبلغ');return;}
   if(!data.expenses)data.expenses=[];data.expenses.push({id:'e'+Date.now(),name:n,amount:a,month:m,createdAt:Date.now()});
-  save().then(()=>{document.getElementById('expN').value='';document.getElementById('expA').value='';renderAcc();toast('✅ تمت الإضافة');}).catch(()=>{data.expenses.pop();toast('❌ فشل');});
+  saveArchive().then(()=>{document.getElementById('expN').value='';document.getElementById('expA').value='';renderAcc();toast('✅ تمت الإضافة');}).catch(()=>{data.expenses.pop();toast('❌ فشل');});
 }
-function delExp(id){if(!confirm('حذف؟'))return;const idx=data.expenses.findIndex(e=>e.id===id);if(idx<0)return;const rm=data.expenses.splice(idx,1)[0];save().then(()=>renderAcc()).catch(()=>{data.expenses.splice(idx,0,rm);});}
+function delExp(id){if(!confirm('حذف؟'))return;const idx=data.expenses.findIndex(e=>e.id===id);if(idx<0)return;const rm=data.expenses.splice(idx,1)[0];saveArchive().then(()=>renderAcc()).catch(()=>{data.expenses.splice(idx,0,rm);});}
 function renderAcc(){
   if(!data.expenses)data.expenses=[];popMonthSels();
   const fm=document.getElementById('fltM')?.value||monthKey(new Date());const cm=monthKey(new Date());
@@ -1486,7 +1532,7 @@ async function saveManual(){
 function printToday(){
   const today=todayK();const tb=data.bookings.filter(b=>!b.cancelled&&b.dateKey===today);
   if(!tb.length){toast('ما في حجوزات اليوم');return;}
-  const sorted=[...tb].sort((a,b)=>ALL_SLOTS.indexOf(a.slot)-ALL_SLOTS.indexOf(b.slot));
+  const sorted=[...tb].sort((a,b)=>(slotDateTime(a.dateKey,a.slot)||new Date(0))-(slotDateTime(b.dateKey,b.slot)||new Date(0)));
   const total=sorted.reduce((s,b)=>s+(Number(b.price)||0),0);
   const win=window.open('','_blank');
   win.document.write(`<html dir="rtl"><head><meta charset="UTF-8"/><title>Sun Shave</title><style>body{font-family:Arial;direction:rtl;padding:20px;}h2{margin-bottom:14px;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #ddd;padding:7px;text-align:right;font-size:12px;}th{background:#070705;color:#C9A84C;}.tot{font-weight:bold;margin-top:10px;}</style></head><body><h2>☀️ Sun Shave — حجوزات اليوم</h2><table><tr><th>#</th><th>الاسم</th><th>الخدمة</th><th>الساعة</th><th>السعر</th><th>الهاتف</th><th>ملاحظة</th></tr>${sorted.map((b,i)=>`<tr><td>${i+1}</td><td>${b.name}</td><td>${b.service}</td><td>${b.slot}</td><td>${Number(b.price).toLocaleString()}</td><td>${b.phone}</td><td>${b.note||''}</td></tr>`).join('')}</table><div class="tot">المجموع: ${total.toLocaleString()} د.ع | ${sorted.length} حجز</div></body></html>`);
