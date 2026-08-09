@@ -531,24 +531,17 @@ const L_KEY='ss_lockout';const F_KEY='ss_fails';
 async function hashPin(p){const enc=new TextEncoder().encode(p);const buf=await crypto.subtle.digest('SHA-256',enc);return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');}
 
 // getP و setP يشتغلان بعد تحميل Firebase — نستخدم window._fbReady
-// نخزن هاش الرمز بالذاكرة (_pinCache) عشان ما نسوي رحلة نت لفايربيس بكل مرة يدخل فيها المستخدم الرمز —
-// نجيبه مرة وحدة (مسبقاً بالخلفية) ونستخدم النسخة المخزنة لأي محاولة جاية
-let _pinCache=null;
-async function getP(force){
-  if(_pinCache&&!force) return _pinCache;
+async function getP(){
   try{
-    if(window._fbGetPin){_pinCache=await window._fbGetPin();return _pinCache;}
+    if(window._fbGetPin) return await window._fbGetPin();
   }catch{}
-  _pinCache=await hashPin('1234');
-  return _pinCache;
+  return await hashPin('1234');
 }
 async function setP(v){
   try{
     if(window._fbSetPin) await window._fbSetPin(v);
   }catch{}
-  _pinCache=await hashPin(v); // حدّث النسخة المخزنة فوراً بعد تغيير الرمز
 }
-window.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{getP().catch(()=>{});},50);});
 function locked(){return Date.now()<parseInt(localStorage.getItem(L_KEY)||'0');}
 function lockLeft(){return Math.ceil((parseInt(localStorage.getItem(L_KEY)||'0')-Date.now())/1000);}
 let pe='';
@@ -564,7 +557,7 @@ document.addEventListener('keydown',e=>{if(document.getElementById('pinScreen').
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, getDoc, setDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 const _app=initializeApp({apiKey:"AIzaSyDJiUW6zjEeBV2Aag8N8Fga13SEIlAr8AM",authDomain:"shams-salon.firebaseapp.com",projectId:"shams-salon",storageBucket:"shams-salon.firebasestorage.app",messagingSenderId:"942915305459",appId:"1:942915305459:web:1f2a6c0d6afa3c2dbe1c86"});
 const _db=getFirestore(_app);
 const DB=doc(_db,"shams","data");
@@ -627,11 +620,8 @@ function slots(){const w=wh();const si=ALL_SLOTS.indexOf(w.start);const ei=ALL_S
 function slotDateTime(dateKey,slot){
   const h=SH[slot];if(h===undefined)return null;
   const hFloor=Math.floor(h);const mins=h%1!==0?30:0;
-  // نحدد هل هذا الوقت "اليوم التالي" بمقارنة ساعته بساعة بداية الدوام —
-  // إذا ساعته أصغر من ساعة البداية، معناته عبرنا نص الليل فعلاً (يشتغل صح سواء الدوام يبدأ مساءً ويمتد لبعد
-  // نص الليل، أو يبدأ صباحاً بدون ما يعبر نص الليل أبداً — قبل هذا كان أي وقت "ص" ينحسب دايماً يوم بعده غلط)
-  const w=wh();const startH=SH[w.start];
-  const isMidnight=(startH!==undefined)&&(h<startH);
+  // ساعات الصباح الباكر (ص) تنتمي لليوم التالي
+  const isMidnight=h>=0&&h<12&&slot&&slot.includes('ص');
   const base=new Date(dateKey+'T00:00:00');
   if(isMidnight)base.setDate(base.getDate()+1);
   base.setHours(hFloor,mins,0,0);
@@ -702,33 +692,44 @@ async function load(){
     lastSync=new Date();syncBar(true);
   }catch(e){syncBar(false);toast('خطأ في الاتصال');}
 }
-async function save(){
-  // قبل الحفظ، نتأكد ما نمسح حجوزات وصلت من الزبائن ولسا ما تحدثت عندنا محلياً
-  // (مثلاً: زبون حجز، وإحنا بنفس اللحظة نسوي تغيير ثاني بلوحة التحكم — بدون هذا التحقق راح ينمسح حجزه)
-  try{
-    const fresh=await getDoc(DB);
-    if(fresh.exists()){
-      const fr=fresh.data();
-      const serverBookings=typeof fr.bookings==='string'?JSON.parse(fr.bookings):(fr.bookings||[]);
-      const serverWaitlist=typeof fr.waitlist==='string'?JSON.parse(fr.waitlist):(fr.waitlist||[]);
-      const localIds=new Set((data.bookings||[]).map(b=>b.id));
-      const newFromServer=serverBookings.filter(b=>!localIds.has(b.id));
-      if(newFromServer.length)data.bookings=[...(data.bookings||[]),...newFromServer];
-      const localWIds=new Set((data.waitlist||[]).map(w=>w.id));
-      const newWFromServer=serverWaitlist.filter(w=>!localWIds.has(w.id));
-      if(newWFromServer.length)data.waitlist=[...(data.waitlist||[]),...newWFromServer];
+async function save(removedIds){
+  // removedIds: أي معرفات حجز/انتظار حذفناها بهذا الاستدعاء (إلغاء، تخصيص كخدمة تمت، إلخ)
+  // نطبقها بعد ما نقرا أحدث نسخة من السيرفر عشان ما ترجع تنعاد بالغلط
+  const removedSet=new Set(removedIds||[]);
+  const localBookings=data.bookings||[];
+  const localWaitlist=data.waitlist||[];
+  const localMap=new Map(localBookings.map(b=>[b.id,b]));
+  const localWMap=new Map(localWaitlist.map(w=>[w.id,w]));
+  await runTransaction(_db,async(transaction)=>{
+    const snap=await transaction.get(DB);
+    let serverBookings=[],serverWaitlist=[];
+    if(snap.exists()){
+      const r=snap.data();
+      serverBookings=typeof r.bookings==='string'?JSON.parse(r.bookings):(r.bookings||[]);
+      serverWaitlist=typeof r.waitlist==='string'?JSON.parse(r.waitlist):(r.waitlist||[]);
     }
-  }catch(e){/* إذا فشلت القراءة، نكمل بالحفظ بالبيانات المحلية بدل ما نوقف كل شي */}
-  await setDoc(DB,{bookings:JSON.stringify(data.bookings||[]),waitlist:JSON.stringify(data.waitlist||[]),disabledDays:JSON.stringify(data.disabledDays||[]),blockedSlots:JSON.stringify(data.blockedSlots||{}),recurringBlockedSlots:JSON.stringify(data.recurringBlockedSlots||{}),archivedBookings:JSON.stringify(data.archivedBookings||[]),expenses:JSON.stringify(data.expenses||[]),services:JSON.stringify(data.services||[]),workHoursStart:(data.workHours&&data.workHours.start)||"5:00 م",workHoursEnd:(data.workHours&&data.workHours.end)||"11:00 م",heroPhoto:data.heroPhoto||''},{merge:true});
+    // نبدا من نسخة السيرفر (تحتوي أي حجز وصل من زبون بنفس اللحظة)، نطبق حذوفاتنا المحلية،
+    // ونحدّث بأي تعديل محلي (ملاحظة، تذكير...)، وأخيراً نضيف أي حجز محلي جديد مو بالسيرفر بعد
+    const mergedBookings=serverBookings.filter(b=>!removedSet.has(b.id)).map(b=>localMap.get(b.id)||b);
+    const knownIds=new Set(mergedBookings.map(b=>b.id));
+    const localOnlyNew=localBookings.filter(b=>!knownIds.has(b.id)&&!removedSet.has(b.id));
+    const finalBookings=[...mergedBookings,...localOnlyNew];
+    const mergedWaitlist=serverWaitlist.filter(w=>!removedSet.has(w.id)).map(w=>localWMap.get(w.id)||w);
+    const knownWIds=new Set(mergedWaitlist.map(w=>w.id));
+    const localOnlyNewW=localWaitlist.filter(w=>!knownWIds.has(w.id)&&!removedSet.has(w.id));
+    const finalWaitlist=[...mergedWaitlist,...localOnlyNewW];
+    transaction.set(DB,{bookings:JSON.stringify(finalBookings),waitlist:JSON.stringify(finalWaitlist),disabledDays:JSON.stringify(data.disabledDays||[]),blockedSlots:JSON.stringify(data.blockedSlots||{}),recurringBlockedSlots:JSON.stringify(data.recurringBlockedSlots||{}),archivedBookings:JSON.stringify(data.archivedBookings||[]),expenses:JSON.stringify(data.expenses||[]),services:JSON.stringify(data.services||[]),workHoursStart:(data.workHours&&data.workHours.start)||"5:00 م",workHoursEnd:(data.workHours&&data.workHours.end)||"11:00 م",heroPhoto:data.heroPhoto||''},{merge:true});
+    data.bookings=finalBookings;
+    data.waitlist=finalWaitlist;
+  });
   lastSync=new Date();syncBar(true);
 }
 function cleanOld(){
   const t=todayK();
-  const w=wh();const startH=SH[w.start];
   const toRemove=data.bookings.filter(b=>{
     if(!b.dateKey)return true;
     const h=SH[b.slot];
-    const isMidnight=(startH!==undefined)&&(h!==undefined)&&(h<startH);
+    const isMidnight=b.slot&&b.slot.includes('ص')&&h!==undefined&&h<12;
     if(isMidnight){const nd=new Date(b.dateKey+'T00:00:00');nd.setDate(nd.getDate()+1);return dk(nd)<t;}
     return b.dateKey<t;
   });
@@ -800,9 +801,9 @@ async function remind(id){
   try{await save();render();toast(`✅ تأكيد لـ ${b.name}`);}
   catch(e){b.reminded=false;toast('❌ فشل');}
 }
-async function cancelB(id){if(!confirm('إلغاء هذا الحجز؟'))return;const b=data.bookings.find(x=>x.id===id);if(!b)return;const waWin=window.open('','_blank');const bk=[...data.bookings];data.bookings=data.bookings.filter(x=>x.id!==id);try{await save();render();toast(`🗑️ ألغي موعد ${b.name}`);const msg=`مرحبا ${b.name} 👋\n\n❌ نأسف، تم إلغاء حجزكم في صالون شمس\n✂️ ${b.service}\n📅 ${b.dateLabel||b.day}\n⏰ ${b.slot}\n\nيمكنكم إعادة الحجز بوقت آخر يناسبكم 🙏`;openWA(b.phone,msg,waWin);}catch{data.bookings=bk;toast('❌ فشل');if(waWin&&!waWin.closed)waWin.close();}}
-async function cancelLate(id){const b=data.bookings.find(x=>x.id===id);if(!b)return;const m=lateMin(b);const waWin=window.open('','_blank');const bk=[...data.bookings];data.bookings=data.bookings.filter(x=>x.id!==id);try{await save();render();toast(`⛔ ألغي حجز ${b.name} — تأخر ${m} دقيقة`);const msg=`⚠️ نعتذر، تم إلغاء حجزكم بسبب التأخر عن الموعد المحدد لأكثر من 15 دقيقة، وذلك حرصًا على الالتزام بمواعيد جميع الزبائن.\nيسعدنا استقبالكم في أي وقت آخر، ويمكنكم حجز موعد جديد بكل سهولة.\nشكرًا لتفهمكم، ونتطلع لخدمتكم دائمًا. 🌹`;openWA(b.phone,msg,waWin);}catch{data.bookings=bk;toast('❌ فشل');if(waWin&&!waWin.closed)waWin.close();}}
-async function markDone(id){const b=data.bookings.find(x=>x.id===id);if(!b)return;if(!confirm(`تأكيد انتهاء خدمة ${b.name}؟`))return;data.bookings=data.bookings.filter(x=>x.id!==id);if(!data.archivedBookings)data.archivedBookings=[];data.archivedBookings.push({...b,completedAt:Date.now(),status:'done'});try{await save();render();toast(`✅ تمت خدمة ${b.name}`);}catch{data.bookings.push(b);data.archivedBookings.pop();toast('❌ فشل');}}
+async function cancelB(id){if(!confirm('إلغاء هذا الحجز؟'))return;const b=data.bookings.find(x=>x.id===id);if(!b)return;const waWin=window.open('','_blank');const bk=[...data.bookings];data.bookings=data.bookings.filter(x=>x.id!==id);try{await save([id]);render();toast(`🗑️ ألغي موعد ${b.name}`);const msg=`مرحبا ${b.name} 👋\n\n❌ نأسف، تم إلغاء حجزكم في صالون شمس\n✂️ ${b.service}\n📅 ${b.dateLabel||b.day}\n⏰ ${b.slot}\n\nيمكنكم إعادة الحجز بوقت آخر يناسبكم 🙏`;openWA(b.phone,msg,waWin);}catch{data.bookings=bk;toast('❌ فشل');if(waWin&&!waWin.closed)waWin.close();}}
+async function cancelLate(id){const b=data.bookings.find(x=>x.id===id);if(!b)return;const m=lateMin(b);const waWin=window.open('','_blank');const bk=[...data.bookings];data.bookings=data.bookings.filter(x=>x.id!==id);try{await save([id]);render();toast(`⛔ ألغي حجز ${b.name} — تأخر ${m} دقيقة`);const msg=`⚠️ نعتذر، تم إلغاء حجزكم بسبب التأخر عن الموعد المحدد لأكثر من 15 دقيقة، وذلك حرصًا على الالتزام بمواعيد جميع الزبائن.\nيسعدنا استقبالكم في أي وقت آخر، ويمكنكم حجز موعد جديد بكل سهولة.\nشكرًا لتفهمكم، ونتطلع لخدمتكم دائمًا. 🌹`;openWA(b.phone,msg,waWin);}catch{data.bookings=bk;toast('❌ فشل');if(waWin&&!waWin.closed)waWin.close();}}
+async function markDone(id){const b=data.bookings.find(x=>x.id===id);if(!b)return;if(!confirm(`تأكيد انتهاء خدمة ${b.name}؟`))return;data.bookings=data.bookings.filter(x=>x.id!==id);if(!data.archivedBookings)data.archivedBookings=[];data.archivedBookings.push({...b,completedAt:Date.now(),status:'done'});try{await save([id]);render();toast(`✅ تمت خدمة ${b.name}`);}catch{data.bookings.push(b);data.archivedBookings.pop();toast('❌ فشل');}}
 async function saveNote(id){const b=data.bookings.find(x=>x.id===id);if(!b)return;const inp=document.getElementById('note_'+id);if(!inp)return;b.note=inp.value.trim();await save();toast('💾 تم حفظ الملاحظة');}
 function sendWait(id){const b=data.bookings.find(x=>x.id===id);if(!b)return;const w=waitInfo(id);if(!w){toast('هذا الحجز مو اليوم');return;}const msg=w.before===0?`السلام عليكم ${b.name} 👋\n\n✂️ دورك الآن في Sun Shave!\n\nتفضل مباشرة ☀️`:`السلام عليكم ${b.name} 👋\n\n⏳ وقت انتظارك التقديري:\n👤 في قبلك: ${w.before} زبون\n⏱️ ~${w.mins} دقيقة\n\nSun Shave ☀️`;openWA(b.phone,msg);toast(`📲 أُرسل لـ ${b.name}`);}
 async function clearAll(){
@@ -877,7 +878,7 @@ function renderWaitlist(){
   const list=document.getElementById('waitCards');if(!data.waitlist||!data.waitlist.length){list.innerHTML=`<div class="empty"><div class="empty-icon">⏳</div><p>القائمة فارغة</p></div>`;return;}
   list.innerHTML=data.waitlist.map(w=>`<div class="wait-card"><div><div class="wait-name">${w.name}</div><div class="wait-detail">📞 ${w.phone} • 📅 ${w.day}</div></div><button class="notif-btn" onclick="notifyWait('${w.id}')">📲 أبلغه</button></div>`).join('');
 }
-async function notifyWait(id){const w=data.waitlist.find(x=>x.id===id);if(!w)return;const msg=`السلام عليكم ${w.name} 👋\n\n🎉 تفرغ وقت في Sun Shave ليوم ${w.day}!\n\nاحجز الآن ☀️`;openWA(w.phone,msg);data.waitlist=data.waitlist.filter(x=>x.id!==id);try{await save();renderWaitlist();toast(`✅ تم إبلاغ ${w.name}`);}catch{data.waitlist.push(w);}}
+async function notifyWait(id){const w=data.waitlist.find(x=>x.id===id);if(!w)return;const msg=`السلام عليكم ${w.name} 👋\n\n🎉 تفرغ وقت في Sun Shave ليوم ${w.day}!\n\nاحجز الآن ☀️`;openWA(w.phone,msg);data.waitlist=data.waitlist.filter(x=>x.id!==id);try{await save([id]);renderWaitlist();toast(`✅ تم إبلاغ ${w.name}`);}catch{data.waitlist.push(w);}}
 
 function renderSettings(){
   // Render shop background preview
