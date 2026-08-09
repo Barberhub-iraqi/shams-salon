@@ -889,13 +889,17 @@ function occupiedSlots(b){
   return allS.slice(si,Math.min(si+count,allS.length));
 }
 
-// هل وقت معين محجوز (مع مراعاة مدة الخدمات الأخرى)
-function isBooked(dk,s){
-  const realBooked=db.bookings.some(b=>{
+// هل وقت معين محجوز فعلياً من زبون (بدون البلوكات)
+function isRealBooked(dk,s){
+  return db.bookings.some(b=>{
     if(b.dateKey!==dk||b.cancelled)return false;
     return occupiedSlots(b).includes(s);
   });
-  if(realBooked)return true;
+}
+
+// هل وقت معين محجوز (مع مراعاة مدة الخدمات الأخرى)
+function isBooked(dk,s){
+  if(isRealBooked(dk,s))return true;
   const blocked=(db.blockedSlots||{})[dk]||[];
   return blocked.includes(s);
 }
@@ -1198,7 +1202,8 @@ function renderSlots(){
     if(notEnough)return;
     const b=document.createElement('button');
     if(bkd){
-      b.className='slot-btn bkd';b.innerHTML='<span class="bkd-ribbon">محجوز</span>'+s;b.disabled=true;
+      const ribbon=isRealBooked(selDateKey,s)?'محجوز':'استراحة';
+      b.className='slot-btn bkd';b.innerHTML=`<span class="bkd-ribbon">${ribbon}</span>`+s;b.disabled=true;
     } else if(past){
       b.className='slot-btn past';b.textContent=s;b.disabled=true;
     } else {
