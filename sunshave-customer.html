@@ -60,6 +60,42 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);min-he
 .hero-line{width:60px;height:1px;background:linear-gradient(to right,transparent,var(--gold),transparent);margin:12px auto 0;position:relative;z-index:1;}
 .work-badge{display:inline-block;margin-top:12px;font-size:11px;color:var(--gold);background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);border-radius:30px;padding:4px 16px;position:relative;z-index:1;}
 
+/* CINEMATIC SPLASH */
+.splash{position:fixed;inset:0;z-index:1000;display:none;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;
+  background:var(--black);
+  transition:opacity 1s ease, transform 1s ease, filter 1s ease;cursor:pointer;}
+.splash.hide{opacity:0;transform:scale(1.06);filter:blur(8px);pointer-events:none;}
+.splash-vignette{position:absolute;inset:0;box-shadow:inset 0 0 140px rgba(0,0,0,0.85);pointer-events:none;}
+.splash-logo-wrap{width:120px;height:120px;opacity:0;transform:scale(.7);animation:splashLogo 1.3s cubic-bezier(.2,.8,.2,1) forwards;animation-delay:.3s;position:relative;z-index:1;}
+.splash-logo-wrap img{width:100%;height:100%;object-fit:contain;filter:drop-shadow(0 0 22px rgba(201,168,76,.35));}
+@keyframes splashLogo{0%{opacity:0;transform:scale(.7)}100%{opacity:1;transform:scale(1)}}
+.splash-brand{margin-top:16px;font-family:'Cinzel',serif;font-size:30px;font-weight:900;opacity:0;
+  background:linear-gradient(180deg,var(--gold3) 0%,var(--gold) 60%,var(--gold-dim) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;position:relative;z-index:1;
+  animation:splashBrand 1.6s ease forwards;animation-delay:1.1s;}
+@keyframes splashBrand{0%{opacity:0;letter-spacing:24px}100%{opacity:1;letter-spacing:5px}}
+.splash-sub{margin-top:8px;font-size:11px;letter-spacing:4px;color:var(--muted);opacity:0;position:relative;z-index:1;
+  animation:splashFadeUp .9s ease forwards;animation-delay:1.9s;}
+.splash-line{width:0;height:1px;background:linear-gradient(to right,transparent,var(--gold),transparent);margin:18px auto;position:relative;z-index:1;
+  animation:splashLineGrow 1s ease forwards;animation-delay:2.3s;}
+@keyframes splashLineGrow{to{width:70px}}
+.splash-welcome{max-width:300px;padding:0 26px;text-align:center;font-family:'Cinzel',serif;font-size:22px;font-weight:900;letter-spacing:3px;line-height:1.6;opacity:0;position:relative;z-index:1;
+  background:linear-gradient(180deg,var(--gold3) 0%,var(--gold) 55%,var(--gold-dim) 100%);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+  animation:splashFadeUp 1s ease forwards;animation-delay:2.7s;}
+.splash-tap{margin-top:26px;font-size:10.5px;color:var(--gold);letter-spacing:1px;opacity:0;position:relative;z-index:1;
+  animation:splashFadeUp 1s ease forwards, splashPulse 1.6s ease-in-out infinite;animation-delay:3.4s,4.4s;}
+@keyframes splashFadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes splashPulse{0%,100%{opacity:.5}50%{opacity:1}}
+
+/* RECOGNIZED CUSTOMER (تذكر بيانات الزبون) */
+.recognized-box{display:none;align-items:center;justify-content:space-between;gap:10px;background:#0F0F08;border:1px solid var(--border2);border-radius:12px;padding:14px 16px;margin-bottom:4px;}
+.recognized-hi{font-size:13.5px;color:var(--text);}
+.recognized-hi b{color:var(--gold);}
+.recognized-sub{font-size:10.5px;color:var(--muted);margin-top:3px;}
+.recognized-change{font-size:11px;color:var(--gold-dim);background:none;border:1px solid var(--border2);border-radius:20px;padding:6px 12px;cursor:pointer;white-space:nowrap;}
+.recognized-change:hover{border-color:var(--gold);color:var(--gold);}
+
 /* LAYOUT */
 .page{max-width:460px;margin:0 auto;padding:0 16px 100px;}
 .sec{margin-top:28px;}
@@ -190,10 +226,19 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);min-he
   background:#0F0F08;border:1px solid var(--border2);border-radius:7px;
   padding:11px 4px;font-family:'Cairo',sans-serif;font-size:12px;font-weight:600;
   color:var(--muted);cursor:pointer;transition:all .15s;text-align:center;
+  position:relative;overflow:hidden;
 }
 .slot-btn:hover:not(.bkd):not(.past){border-color:rgba(201,168,76,0.4);color:var(--gold);}
 .slot-btn.sel{background:rgba(201,168,76,0.1);border-color:var(--gold);color:var(--gold2);font-weight:900;}
-.slot-btn.bkd{opacity:.25;cursor:not-allowed;}
+.slot-btn.bkd{opacity:.7;cursor:not-allowed;color:#EF5350;font-style:italic;border-color:rgba(239,83,80,0.35);background:rgba(239,83,80,0.06);}
+.slot-btn.bkd .bkd-ribbon{
+  position:absolute;top:6px;left:-22px;width:80px;
+  transform:rotate(-40deg);transform-origin:center;
+  background:#8B2020;color:#FFD9D9;
+  font-size:8px;font-weight:900;font-style:italic;
+  letter-spacing:0.5px;padding:1px 0;text-align:center;
+  box-shadow:0 1px 3px rgba(0,0,0,.4);pointer-events:none;
+}
 .slot-btn.past{opacity:.15;cursor:not-allowed;text-decoration:line-through;}
 .all-bkd{background:rgba(139,32,32,0.08);border:1px solid rgba(139,32,32,0.2);border-radius:10px;padding:18px;text-align:center;margin-top:6px;}
 .all-bkd p{font-size:14px;color:#EF5350;font-weight:700;}
@@ -257,6 +302,18 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);min-he
   <p>SUN SHAVE</p>
 </div>
 
+<div class="splash" id="splash" onclick="hideSplash()">
+  <div class="splash-vignette"></div>
+  <div class="splash-logo-wrap">
+    <img src="https://raw.githubusercontent.com/Barberhub-iraqi/shams-salon/main/logo.png" alt="Sun Shave"/>
+  </div>
+  <div class="splash-brand">SUN SHAVE</div>
+  <div class="splash-sub">صالون شمس للرجال</div>
+  <div class="splash-line"></div>
+  <p class="splash-welcome">مرحبا</p>
+  <div class="splash-tap">المس الشاشة للمتابعة</div>
+</div>
+
 <div id="app" style="display:none">
 
 <!-- HERO -->
@@ -274,7 +331,7 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);min-he
 <div id="formView">
   <div class="page">
     <div style="text-align:center;padding:18px 0 4px;font-family:'Cairo',sans-serif;font-size:14px;color:var(--gold);font-weight:700;letter-spacing:1px;">الكوافير محمد كاظم</div>
-    <div class="sec">
+    <div class="sec" id="infoSec">
       <div class="sec-label">بياناتك</div>
       <div class="inp-wrap">
         <label class="inp-lbl">الاسم</label>
@@ -285,6 +342,16 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);min-he
         <label class="inp-lbl">رقم الواتساب</label>
         <input class="inp" id="phoneInp" placeholder="07XXXXXXXXX أو 964XXXXXXXXX+" maxlength="16" type="tel"/>
         <div class="err-msg" id="phoneErr">أدخل رقم عراقي صحيح</div>
+      </div>
+    </div>
+
+    <div class="sec" id="recognizedBox" style="display:none">
+      <div class="recognized-box" style="display:flex">
+        <div>
+          <div class="recognized-hi">👋 مرحباً <b id="recognizedName"></b></div>
+          <div class="recognized-sub">اختار الخدمة واليوم والوقت وحجزك جاهز</div>
+        </div>
+        <button type="button" class="recognized-change" onclick="showManualForm()">مو انت؟ تغيير</button>
       </div>
     </div>
 
@@ -967,6 +1034,46 @@ async function bookWithTransaction(b,onlyFreeSvcs){
 
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3000);}
 
+function hideSplash(){
+  const s=document.getElementById('splash');
+  if(!s||s.classList.contains('hide'))return;
+  s.classList.add('hide');
+  setTimeout(()=>{s.style.display='none';},1000);
+}
+window.hideSplash=hideSplash;
+
+// تذكر بيانات الزبون بهاذا الجهاز حتى ما يعيد كتابتها بكل حجز
+const CUSTOMER_KEY='sunshave_shams_customer';
+function getSavedCustomer(){
+  try{const v=JSON.parse(localStorage.getItem(CUSTOMER_KEY)||'null');
+    if(v&&v.name&&v.phone)return v;
+  }catch{}
+  return null;
+}
+function saveCustomer(name,phone){
+  try{localStorage.setItem(CUSTOMER_KEY,JSON.stringify({name,phone}));}catch{}
+}
+function forgetCustomer(){
+  try{localStorage.removeItem(CUSTOMER_KEY);}catch{}
+}
+function applyRecognizedCustomer(c){
+  document.getElementById('nameInp').value=c.name;
+  document.getElementById('phoneInp').value=c.phone;
+  document.getElementById('recognizedName').textContent=c.name;
+  document.getElementById('infoSec').style.display='none';
+  document.getElementById('recognizedBox').style.display='block';
+  updateBtn();
+}
+function showManualForm(){
+  forgetCustomer();
+  document.getElementById('nameInp').value='';
+  document.getElementById('phoneInp').value='';
+  document.getElementById('infoSec').style.display='block';
+  document.getElementById('recognizedBox').style.display='none';
+  updateBtn();
+}
+window.showManualForm=showManualForm;
+
 function updateBtn(){
   const name=document.getElementById('nameInp').value.trim();
   const phone=document.getElementById('phoneInp').value.trim();
@@ -974,6 +1081,8 @@ function updateBtn(){
   const ni=document.getElementById('nameInp'),pi=document.getElementById('phoneInp');
   if(name&&!validName(name)){ni.classList.add('err');ne.style.display='block';}else{ni.classList.remove('err');ne.style.display='none';}
   if(phone&&!validPhone(phone)){pi.classList.add('err');pe.style.display='block';}else{pi.classList.remove('err');pe.style.display='none';}
+  // حفظ فوري لبيانات الزبون أول ما يصير الاسم والرقم صحيحين — حتى لو ما أكمل الحجز بعد
+  if(name&&phone&&validName(name)&&validPhone(phone))saveCustomer(name,phone);
   const btn=document.getElementById('bookBtn');
   const ok=name&&phone&&validName(name)&&validPhone(phone)&&selSvcs.length&&selDateKey&&selSlot;
   btn.disabled=!ok;
@@ -1072,7 +1181,7 @@ function renderSlots(){
     if(notEnough)return;
     const b=document.createElement('button');
     if(bkd){
-      b.className='slot-btn bkd';b.textContent=s;b.disabled=true;
+      b.className='slot-btn bkd';b.innerHTML='<span class="bkd-ribbon">محجوز</span>'+s;b.disabled=true;
     } else if(past){
       b.className='slot-btn past';b.textContent=s;b.disabled=true;
     } else {
@@ -1162,8 +1271,12 @@ async function doWaitlist(){
 
 function resetForm(){
   selSvcs=[];selDateKey=null;selDateLabel=null;selSlot=null;kidsCount=0;kidsOverridePrice=0;kidsOverrideDuration=0;boysCount=0;boysOverridePrice=0;boysOverrideDuration=0;
-  document.getElementById('nameInp').value='';
-  document.getElementById('phoneInp').value='';
+  const savedCustomer=getSavedCustomer();
+  if(savedCustomer){applyRecognizedCustomer(savedCustomer);}
+  else{
+    document.getElementById('nameInp').value='';
+    document.getElementById('phoneInp').value='';
+  }
   document.getElementById('successView').classList.add('hidden');
   document.getElementById('waitView').classList.add('hidden');
   document.getElementById('formView').classList.remove('hidden');
@@ -1178,10 +1291,14 @@ function resetForm(){
   try{await load();}catch(e){console.error('Firebase error:',e);}
   document.getElementById('loader').style.display='none';
   document.getElementById('app').style.display='block';
+  document.getElementById('splash').style.display='flex';
+  setTimeout(hideSplash,4800);
   renderSvcs();renderDays();
   loadProducts();
   document.getElementById('nameInp').addEventListener('input',updateBtn);
   document.getElementById('phoneInp').addEventListener('input',function(){const norm=normPhone(this.value);if(norm!==this.value){this.value=norm;}updateBtn();});
+  const savedCustomer=getSavedCustomer();
+  if(savedCustomer)applyRecognizedCustomer(savedCustomer);
   window.doBook=doBook;window.doWaitlist=doWaitlist;window.resetForm=resetForm;
   window.confirmKids=confirmKids;window.closeKidsModal=closeKidsModal;
   window.confirmBoys=confirmBoys;window.closeBoysModal=closeBoysModal;

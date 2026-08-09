@@ -463,6 +463,13 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);color:
         <div class="blk-day-sel" id="blkDaySel"></div>
         <div class="blk-slots-grid" id="blkSlotsGrid"><div style="color:var(--muted);font-size:11px;text-align:center;padding:10px;grid-column:span 4">اختار يوماً أولاً</div></div>
         <div id="blkCount" style="font-size:10px;color:var(--muted);text-align:center;margin-top:4px"></div>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid rgba(239,83,80,0.15)">
+          <div style="font-size:11px;color:#EF9090;font-weight:700;margin-bottom:4px;">🔁 حجب متكرر أسبوعياً</div>
+          <div style="font-size:10px;color:var(--muted);margin-bottom:10px;">اختار يوم من أيام الأسبوع ثم الساعات — تنحجب تلقائياً كل أسبوع بلا ما تدخل يوم يوم</div>
+          <div class="blk-day-sel" id="blkRecDaySel"></div>
+          <div class="blk-slots-grid" id="blkRecSlotsGrid"><div style="color:var(--muted);font-size:11px;text-align:center;padding:10px;grid-column:span 4">اختار يوماً أولاً</div></div>
+          <div id="blkRecCount" style="font-size:10px;color:var(--muted);text-align:center;margin-top:4px"></div>
+        </div>
       </div>
       <div class="scard">
         <div class="stitle">🔒 تغيير رمز الدخول</div>
@@ -672,6 +679,7 @@ async function load(){
         waitlist:typeof r.waitlist==='string'?JSON.parse(r.waitlist):(r.waitlist||[]),
         disabledDays:typeof r.disabledDays==='string'?JSON.parse(r.disabledDays):(r.disabledDays||[]),
         blockedSlots:typeof r.blockedSlots==='string'?JSON.parse(r.blockedSlots):(r.blockedSlots||{}),
+        recurringBlockedSlots:typeof r.recurringBlockedSlots==='string'?JSON.parse(r.recurringBlockedSlots):(r.recurringBlockedSlots||{}),
         archivedBookings:typeof r.archivedBookings==='string'?JSON.parse(r.archivedBookings):(r.archivedBookings||[]),
         expenses:typeof r.expenses==='string'?JSON.parse(r.expenses):(r.expenses||[]),
         workHours:{start:r.workHoursStart||"5:00 م",end:r.workHoursEnd||"11:00 م"},
@@ -679,11 +687,13 @@ async function load(){
         heroPhoto:r.heroPhoto||''
       };
     }
-    cleanOld();lastSync=new Date();syncBar(true);
+    cleanOld();
+    if(materializeRecurringBlocks())await save();
+    lastSync=new Date();syncBar(true);
   }catch(e){syncBar(false);toast('خطأ في الاتصال');}
 }
 async function save(){
-  await setDoc(DB,{bookings:JSON.stringify(data.bookings||[]),waitlist:JSON.stringify(data.waitlist||[]),disabledDays:JSON.stringify(data.disabledDays||[]),blockedSlots:JSON.stringify(data.blockedSlots||{}),archivedBookings:JSON.stringify(data.archivedBookings||[]),expenses:JSON.stringify(data.expenses||[]),services:JSON.stringify(data.services||[]),workHoursStart:(data.workHours&&data.workHours.start)||"5:00 م",workHoursEnd:(data.workHours&&data.workHours.end)||"11:00 م",heroPhoto:data.heroPhoto||''},{merge:true});
+  await setDoc(DB,{bookings:JSON.stringify(data.bookings||[]),waitlist:JSON.stringify(data.waitlist||[]),disabledDays:JSON.stringify(data.disabledDays||[]),blockedSlots:JSON.stringify(data.blockedSlots||{}),recurringBlockedSlots:JSON.stringify(data.recurringBlockedSlots||{}),archivedBookings:JSON.stringify(data.archivedBookings||[]),expenses:JSON.stringify(data.expenses||[]),services:JSON.stringify(data.services||[]),workHoursStart:(data.workHours&&data.workHours.start)||"5:00 م",workHoursEnd:(data.workHours&&data.workHours.end)||"11:00 م",heroPhoto:data.heroPhoto||''},{merge:true});
   lastSync=new Date();syncBar(true);
 }
 function cleanOld(){
@@ -891,6 +901,7 @@ function renderSettings(){
   const g=document.getElementById('disScroll');g.innerHTML='';
   next7().forEach(d=>{const key=dk(d);const off=(data.disabledDays||[]).includes(key);const card=document.createElement('div');card.className='dis-day'+(off?' off':'');card.innerHTML=`<span class="dd-name">${DAYS[d.getDay()]}</span><span class="dd-num">${d.getDate()}</span><span class="dd-month">${MONTHS[d.getMonth()]}</span>`;card.onclick=()=>toggleDay(key);g.appendChild(card);});
   renderBlkDaySel();
+  renderBlkRecDaySel();
 }
 
 function onShopBgChange(e){
@@ -1149,10 +1160,91 @@ async function toggleBlkSlot(dateKey,slot){
   const idx=arr.indexOf(slot);
   if(idx>=0)arr.splice(idx,1);else arr.push(slot);
   if(!arr.length)delete data.blockedSlots[dateKey];
-  try{await save();renderBlkDaySel();toast(idx>=0?`✅ فُتح وقت ${slot}`:`🚫 حُجب وقت ${slot}`);}
-  catch{if(idx>=0)arr.splice(idx,0,slot);else arr.pop();toast('❌ فشل');}
+  renderBlkDaySel();toast(idx>=0?`✅ فُتح وقت ${slot}`:`🚫 حُجب وقت ${slot}`);
+  try{await save();}
+  catch{if(idx>=0)arr.splice(idx,0,slot);else arr.pop();renderBlkDaySel();toast('❌ فشل الحفظ');}
 }
 window.toggleBlkSlot=toggleBlkSlot;
+
+// ── Recurring Weekly Blocked Slots ──
+let blkRecSelDay=null;
+function renderBlkRecDaySel(){
+  const g=document.getElementById('blkRecDaySel');if(!g)return;
+  g.innerHTML='';
+  DAYS.forEach((name,idx)=>{
+    const btn=document.createElement('button');
+    btn.className='blk-day-pill'+(blkRecSelDay===idx?' active':'');
+    const cnt=((data.recurringBlockedSlots||{})[idx]||[]).length;
+    btn.textContent=name+(cnt?` (${cnt}🚫)`:'');
+    btn.onclick=()=>{blkRecSelDay=idx;renderBlkRecDaySel();renderBlkRecSlots();};
+    g.appendChild(btn);
+  });
+  renderBlkRecSlots();
+}
+function renderBlkRecSlots(){
+  const g=document.getElementById('blkRecSlotsGrid');if(!g)return;
+  if(blkRecSelDay===null){g.innerHTML='<div style="color:var(--muted);font-size:11px;text-align:center;padding:10px;grid-column:span 4">اختار يوماً أولاً</div>';return;}
+  const workSlots=slots();
+  const blocked=(data.recurringBlockedSlots||{})[blkRecSelDay]||[];
+  g.innerHTML='';
+  workSlots.forEach(s=>{
+    const isBlocked=blocked.includes(s);
+    const btn=document.createElement('button');
+    btn.className='blk-slot'+(isBlocked?' blocked':'');
+    btn.textContent=s;
+    btn.onclick=()=>toggleBlkRecSlot(blkRecSelDay,s);
+    g.appendChild(btn);
+  });
+  const cnt=blocked.length;
+  const countEl=document.getElementById('blkRecCount');
+  if(countEl)countEl.textContent=cnt?`🚫 ${cnt} ساعة تنحجب كل ${DAYS[blkRecSelDay]}`:'✅ ما فيه ساعات محجوبة بشكل متكرر لهذا اليوم';
+}
+async function toggleBlkRecSlot(dayIdx,slot){
+  if(!data.recurringBlockedSlots)data.recurringBlockedSlots={};
+  if(!data.recurringBlockedSlots[dayIdx])data.recurringBlockedSlots[dayIdx]=[];
+  const arr=data.recurringBlockedSlots[dayIdx];
+  const idx=arr.indexOf(slot);
+  const wasBlocked=idx>=0;
+  if(wasBlocked)arr.splice(idx,1);else arr.push(slot);
+  if(!arr.length)delete data.recurringBlockedSlots[dayIdx];
+  if(wasBlocked)removeRecurringSlotFromFuture(dayIdx,slot);else materializeRecurringBlocks();
+  renderBlkRecDaySel();renderBlkDaySel();toast(wasBlocked?`✅ أُلغي التكرار لوقت ${slot}`:`🔁 راح يتحجب وقت ${slot} كل ${DAYS[dayIdx]}`);
+  try{await save();}
+  catch{toast('❌ فشل الحفظ');}
+}
+window.toggleBlkRecSlot=toggleBlkRecSlot;
+// يطبّق قواعد الحجب المتكرر على التواريخ الفعلية (٩٠ يوم قدام) — يرجّع true اذا صار تغيير
+function materializeRecurringBlocks(){
+  const rules=data.recurringBlockedSlots||{};
+  if(!Object.keys(rules).length)return false;
+  if(!data.blockedSlots)data.blockedSlots={};
+  let changed=false;
+  const t=new Date();t.setHours(0,0,0,0);
+  for(let i=0;i<90;i++){
+    const d=new Date(t);d.setDate(t.getDate()+i);
+    const wd=d.getDay();
+    const daySlots=rules[wd];
+    if(!daySlots||!daySlots.length)continue;
+    const key=dk(d);
+    if(!data.blockedSlots[key])data.blockedSlots[key]=[];
+    daySlots.forEach(s=>{if(!data.blockedSlots[key].includes(s)){data.blockedSlots[key].push(s);changed=true;}});
+  }
+  return changed;
+}
+// يشيل ساعة متكررة من كل التواريخ القادمة اللي تطابق نفس يوم الأسبوع
+function removeRecurringSlotFromFuture(dayIdx,slot){
+  if(!data.blockedSlots)return;
+  const t=new Date();t.setHours(0,0,0,0);
+  for(let i=0;i<90;i++){
+    const d=new Date(t);d.setDate(t.getDate()+i);
+    if(d.getDay()!==dayIdx)continue;
+    const key=dk(d);
+    if(data.blockedSlots[key]){
+      data.blockedSlots[key]=data.blockedSlots[key].filter(s=>s!==slot);
+      if(!data.blockedSlots[key].length)delete data.blockedSlots[key];
+    }
+  }
+}
 
 async function changePIN(){
   const old=document.getElementById('oldPin').value.trim();const nw=document.getElementById('newPin').value.trim();
@@ -1426,7 +1518,7 @@ window.sendNtfy=sendNtfy;
 // ─────────────
 
 window.saveHours=saveHours;window.toggleDay=toggleDay;window.changePIN=changePIN;
-window.renderBlkDaySel=renderBlkDaySel;window.renderBlkSlots=renderBlkSlots;
+window.renderBlkDaySel=renderBlkDaySel;window.renderBlkSlots=renderBlkSlots;window.renderBlkRecDaySel=renderBlkRecDaySel;window.renderBlkRecSlots=renderBlkRecSlots;
 window.showManual=showManual;window.hideManual=hideManual;window.updateMSlots=updateMSlots;window.onMSvcChange=onMSvcChange;
 window.saveManual=saveManual;window.printToday=printToday;window.exportBkp=exportBkp;
 window.sendBulk=sendBulk;window.renderBookings=renderBookings;
