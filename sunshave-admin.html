@@ -693,6 +693,22 @@ async function load(){
   }catch(e){syncBar(false);toast('خطأ في الاتصال');}
 }
 async function save(){
+  // قبل الحفظ، نتأكد ما نمسح حجوزات وصلت من الزبائن ولسا ما تحدثت عندنا محلياً
+  // (مثلاً: زبون حجز، وإحنا بنفس اللحظة نسوي تغيير ثاني بلوحة التحكم — بدون هذا التحقق راح ينمسح حجزه)
+  try{
+    const fresh=await getDoc(DB);
+    if(fresh.exists()){
+      const fr=fresh.data();
+      const serverBookings=typeof fr.bookings==='string'?JSON.parse(fr.bookings):(fr.bookings||[]);
+      const serverWaitlist=typeof fr.waitlist==='string'?JSON.parse(fr.waitlist):(fr.waitlist||[]);
+      const localIds=new Set((data.bookings||[]).map(b=>b.id));
+      const newFromServer=serverBookings.filter(b=>!localIds.has(b.id));
+      if(newFromServer.length)data.bookings=[...(data.bookings||[]),...newFromServer];
+      const localWIds=new Set((data.waitlist||[]).map(w=>w.id));
+      const newWFromServer=serverWaitlist.filter(w=>!localWIds.has(w.id));
+      if(newWFromServer.length)data.waitlist=[...(data.waitlist||[]),...newWFromServer];
+    }
+  }catch(e){/* إذا فشلت القراءة، نكمل بالحفظ بالبيانات المحلية بدل ما نوقف كل شي */}
   await setDoc(DB,{bookings:JSON.stringify(data.bookings||[]),waitlist:JSON.stringify(data.waitlist||[]),disabledDays:JSON.stringify(data.disabledDays||[]),blockedSlots:JSON.stringify(data.blockedSlots||{}),recurringBlockedSlots:JSON.stringify(data.recurringBlockedSlots||{}),archivedBookings:JSON.stringify(data.archivedBookings||[]),expenses:JSON.stringify(data.expenses||[]),services:JSON.stringify(data.services||[]),workHoursStart:(data.workHours&&data.workHours.start)||"5:00 م",workHoursEnd:(data.workHours&&data.workHours.end)||"11:00 م",heroPhoto:data.heroPhoto||''},{merge:true});
   lastSync=new Date();syncBar(true);
 }

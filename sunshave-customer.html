@@ -978,14 +978,31 @@ async function load(){
     return true; // نجح التحديث فعلاً
   }catch(e){toast('خطأ في الاتصال');return false;} // فشل التحديث — لازم المتصل يتعامل ويوقف أي عملية حجز
 }
-async function save(){
-  await setDoc(DB,{
-    bookings:JSON.stringify(db.bookings||[]),
-    waitlist:JSON.stringify(db.waitlist||[]),
-    disabledDays:JSON.stringify(db.disabledDays||[]),
-    workHoursStart:(db.workHours&&db.workHours.start)||"5:00 م",
-    workHoursEnd:(db.workHours&&db.workHours.end)||"11:00 م",
-  },{merge:true});
+// انضمام لقائمة الانتظار بعملية ذرية — نفس مبدأ الحجز، حتى ما يصير الكتابة فوق حجوزات وصلت
+// من زبائن آخرين بالنسخة المحلية القديمة
+async function joinWaitlistWithTransaction(entry){
+  await runTransaction(_db,async(transaction)=>{
+    const snap=await transaction.get(DB);
+    let bookings=[],waitlist=[],disabledDays=[];
+    let workHoursStart="5:00 م",workHoursEnd="11:00 م";
+    if(snap.exists()){
+      const r=snap.data();
+      bookings=typeof r.bookings==='string'?JSON.parse(r.bookings):(r.bookings||[]);
+      waitlist=typeof r.waitlist==='string'?JSON.parse(r.waitlist):(r.waitlist||[]);
+      disabledDays=typeof r.disabledDays==='string'?JSON.parse(r.disabledDays):(r.disabledDays||[]);
+      workHoursStart=r.workHoursStart||workHoursStart;
+      workHoursEnd=r.workHoursEnd||workHoursEnd;
+    }
+    waitlist.push(entry);
+    transaction.set(DB,{
+      bookings:JSON.stringify(bookings),
+      waitlist:JSON.stringify(waitlist),
+      disabledDays:JSON.stringify(disabledDays),
+      workHoursStart,workHoursEnd
+    },{merge:true});
+    db.bookings=bookings;
+    db.waitlist=waitlist;
+  });
 }
 
 // حجز محمي: يتحقق من التعارض ويكتب الحجز الجديد بعملية واحدة ذرية مباشرة على السيرفر
@@ -1260,13 +1277,13 @@ async function doWaitlist(){
   if(!validName(name)){toast('أدخل اسمك');return;}
   if(!validPhone(phone)){toast('رقم الهاتف غير صحيح');return;}
   if(!selDateKey){toast('اختار اليوم أولاً');return;}
-  db.waitlist.push({id:'w'+Date.now(),name,phone,day:selDateLabel,dateKey:selDateKey,createdAt:Date.now()});
+  const entry={id:'w'+Date.now(),name,phone,day:selDateLabel,dateKey:selDateKey,createdAt:Date.now()};
   try{
-    await save();
+    await joinWaitlistWithTransaction(entry);
     document.getElementById('w-day').textContent=selDateLabel;
     document.getElementById('formView').classList.add('hidden');
     document.getElementById('waitView').classList.remove('hidden');
-  }catch{db.waitlist.pop();toast('فشل');}
+  }catch{toast('فشل');}
 }
 
 function resetForm(){
