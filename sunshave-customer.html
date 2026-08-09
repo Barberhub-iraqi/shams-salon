@@ -851,9 +851,14 @@ function slots(){const wh=db.workHours||{start:"5:00 م",end:"11:00 م"};const s
 function slotDateTime(dk,s){
   const h=SLOT_H[s];if(h===undefined)return null;
   const hFloor=Math.floor(h);const mins=h%1!==0?30:0;
-  const isMidnight=s&&s.includes('ص')&&h<12;
+  // نحدد هل هذا الوقت يعتبر "اليوم التالي" بمقارنة ساعته (0-23) بساعة بداية الدوام:
+  // إذا ساعة الوقت أصغر من ساعة البداية، معناته تخطينا نص الليل ووصلنا لليوم التالي فعلاً
+  // (يشتغل صح لأي دوام: يبدأ مساءً ويمتد بعد نص الليل، أو يبدأ صباحاً بدون ما يعبر نص الليل أبداً)
+  const wh=db.workHours||{start:"5:00 م",end:"11:00 م"};
+  const startH=SLOT_H[wh.start];
+  const crossesToNextDay=(startH!==undefined)&&(h<startH);
   const base=new Date(dk+'T00:00:00');
-  if(isMidnight)base.setDate(base.getDate()+1);
+  if(crossesToNextDay)base.setDate(base.getDate()+1);
   base.setHours(hFloor,mins,0,0);
   return base;
 }
@@ -1197,15 +1202,14 @@ function renderSlots(){
   const allS=slots();
   allS.forEach((s)=>{
     const past=isPast(selDateKey,s);
+    if(past)return; // الأوقات العابرة تختفي خالص، ما تطلع للزبون
     const bkd=onlyFreeSvcs?false:isBooked(selDateKey,s);
-    const notEnough=!past&&!bkd&&selSvcs.length&&!canBook(selDateKey,s);
+    const notEnough=!bkd&&selSvcs.length&&!canBook(selDateKey,s);
     if(notEnough)return;
     const b=document.createElement('button');
     if(bkd){
       const ribbon=isRealBooked(selDateKey,s)?'محجوز':'استراحة';
       b.className='slot-btn bkd';b.innerHTML=`<span class="bkd-ribbon">${ribbon}</span>`+s;b.disabled=true;
-    } else if(past){
-      b.className='slot-btn past';b.textContent=s;b.disabled=true;
     } else {
       b.className='slot-btn'+(selSlot===s?' sel':'');
       b.textContent=s;
@@ -1225,8 +1229,10 @@ async function doBook(){
   if(phoneBooked(phone)){toast('هذا الرقم عنده حجز مسبق!');return;}
   const btn=document.getElementById('bookBtn');
   btn.disabled=true;btn.textContent='⏳ جاري الحجز...';busy=true;
-  const loadOk=await load();
-  if(!loadOk){toast('تعذّر تحديث البيانات، تأكد من الاتصال بالنت وحاول مرة ثانية');btn.disabled=false;updateBtn();busy=false;return;} // فشل التحديث = نوقف الحجز بدل ما نكمل ببيانات قديمة
+  // ملاحظة: شلنا await load() اللي كان يسوي رحلة نت كاملة زايدة هنا — الترانزاكشن (bookWithTransaction)
+  // أصلاً تسوي getDoc جديد وتتحقق من التعارض على أحدث نسخة من السيرفر، فتكرار التحميل هنا كان يضاعف
+  // وقت الانتظار بلا أي فايدة إضافية. نستخدم النسخة المحلية (db) للتحقق السريع فقط كفحص أولي خفيف،
+  // والتحقق الحقيقي والنهائي يصير جوا الترانزاكشن نفسها.
   const onlyFreeSvcs=selSvcs.every(id=>isShiswarSvc(id)||isSkinSvc(id));
   if(!onlyFreeSvcs&&isBooked(selDateKey,selSlot)){toast('هذا الوقت انحجز للتو!');renderSlots();btn.disabled=false;updateBtn();busy=false;return;}
   if(phoneBooked(phone)){toast('هذا الرقم عنده حجز مسبق!');btn.disabled=false;updateBtn();busy=false;return;}
@@ -1256,8 +1262,8 @@ async function doBook(){
     // الكتابة والتحقق النهائي يصيرون سوا بعملية ذرية وحدة مباشرة على السيرفر —
     // هذا يمنع التعارض حتى لو صار حجزين بنفس اللحظة أو نسخة المتصفح قديمة
     await bookWithTransaction(b,onlyFreeSvcs);
-    // إشعار ntfy فور الحجز
-    try{await fetch('https://ntfy.sh/sunshave-vip-2025?title='+encodeURIComponent('🔔 حجز جديد — Sun Shave')+'&priority=high&tags=scissors',{method:'POST',mode:'no-cors',body:`👤 ${b.name}\n✂️ ${b.service}\n🕐 ${b.slot}\n📅 ${b.day||b.dateKey}\n📞 ${b.phone}`});}catch{}
+    // إشعار ntfy فور الحجز — بدون await حتى ما ننتظر رد سيرفر خارجي قبل ما نورّي نجاح الحجز للزبون
+    fetch('https://ntfy.sh/sunshave-vip-2025?title='+encodeURIComponent('🔔 حجز جديد — Sun Shave')+'&priority=high&tags=scissors',{method:'POST',mode:'no-cors',body:`👤 ${b.name}\n✂️ ${b.service}\n🕐 ${b.slot}\n📅 ${b.day||b.dateKey}\n📞 ${b.phone}`}).catch(()=>{});
 
     document.getElementById('s-name').textContent=name;
     document.getElementById('s-svc').textContent=finalName;

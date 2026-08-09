@@ -531,17 +531,24 @@ const L_KEY='ss_lockout';const F_KEY='ss_fails';
 async function hashPin(p){const enc=new TextEncoder().encode(p);const buf=await crypto.subtle.digest('SHA-256',enc);return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');}
 
 // getP و setP يشتغلان بعد تحميل Firebase — نستخدم window._fbReady
-async function getP(){
+// نخزن هاش الرمز بالذاكرة (_pinCache) عشان ما نسوي رحلة نت لفايربيس بكل مرة يدخل فيها المستخدم الرمز —
+// نجيبه مرة وحدة (مسبقاً بالخلفية) ونستخدم النسخة المخزنة لأي محاولة جاية
+let _pinCache=null;
+async function getP(force){
+  if(_pinCache&&!force) return _pinCache;
   try{
-    if(window._fbGetPin) return await window._fbGetPin();
+    if(window._fbGetPin){_pinCache=await window._fbGetPin();return _pinCache;}
   }catch{}
-  return await hashPin('1234');
+  _pinCache=await hashPin('1234');
+  return _pinCache;
 }
 async function setP(v){
   try{
     if(window._fbSetPin) await window._fbSetPin(v);
   }catch{}
+  _pinCache=await hashPin(v); // حدّث النسخة المخزنة فوراً بعد تغيير الرمز
 }
+window.addEventListener('DOMContentLoaded',()=>{setTimeout(()=>{getP().catch(()=>{});},50);});
 function locked(){return Date.now()<parseInt(localStorage.getItem(L_KEY)||'0');}
 function lockLeft(){return Math.ceil((parseInt(localStorage.getItem(L_KEY)||'0')-Date.now())/1000);}
 let pe='';
@@ -620,8 +627,11 @@ function slots(){const w=wh();const si=ALL_SLOTS.indexOf(w.start);const ei=ALL_S
 function slotDateTime(dateKey,slot){
   const h=SH[slot];if(h===undefined)return null;
   const hFloor=Math.floor(h);const mins=h%1!==0?30:0;
-  // ساعات الصباح الباكر (ص) تنتمي لليوم التالي
-  const isMidnight=h>=0&&h<12&&slot&&slot.includes('ص');
+  // نحدد هل هذا الوقت "اليوم التالي" بمقارنة ساعته بساعة بداية الدوام —
+  // إذا ساعته أصغر من ساعة البداية، معناته عبرنا نص الليل فعلاً (يشتغل صح سواء الدوام يبدأ مساءً ويمتد لبعد
+  // نص الليل، أو يبدأ صباحاً بدون ما يعبر نص الليل أبداً — قبل هذا كان أي وقت "ص" ينحسب دايماً يوم بعده غلط)
+  const w=wh();const startH=SH[w.start];
+  const isMidnight=(startH!==undefined)&&(h<startH);
   const base=new Date(dateKey+'T00:00:00');
   if(isMidnight)base.setDate(base.getDate()+1);
   base.setHours(hFloor,mins,0,0);
@@ -714,10 +724,11 @@ async function save(){
 }
 function cleanOld(){
   const t=todayK();
+  const w=wh();const startH=SH[w.start];
   const toRemove=data.bookings.filter(b=>{
     if(!b.dateKey)return true;
     const h=SH[b.slot];
-    const isMidnight=b.slot&&b.slot.includes('ص')&&h!==undefined&&h<12;
+    const isMidnight=(startH!==undefined)&&(h!==undefined)&&(h<startH);
     if(isMidnight){const nd=new Date(b.dateKey+'T00:00:00');nd.setDate(nd.getDate()+1);return dk(nd)<t;}
     return b.dateKey<t;
   });
