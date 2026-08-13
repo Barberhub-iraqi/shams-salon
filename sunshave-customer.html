@@ -424,6 +424,10 @@ body{font-family:'Cairo',sans-serif;direction:rtl;background:var(--black);min-he
       </div>
       <div class="success-title">تم الحجز ✓</div>
       <div class="success-sub">شكراً لاختيارك Sun Shave</div>
+      <div id="syncStatus" style="display:none;font-size:12px;color:var(--muted);margin-top:-6px;margin-bottom:14px;display:flex;align-items:center;justify-content:center;gap:6px;">
+        <span style="width:10px;height:10px;border:2px solid var(--border);border-top-color:var(--gold);border-radius:50%;display:inline-block;animation:spin 1s linear infinite;"></span>
+        <span id="syncStatusText">جاري تأكيد الحجز مع السيرفر...</span>
+      </div>
       <div class="detail-box">
         <div class="d-row"><span>الاسم</span><strong id="s-name"></strong></div>
         <div class="d-row"><span>الخدمة</span><strong id="s-svc"></strong></div>
@@ -1042,8 +1046,6 @@ async function bookWithTransaction(b,onlyFreeSvcs){
       });
       if(conflict)throw new Error('SLOT_TAKEN');
     }
-    const phoneConflict=bookings.some(bk=>!bk.cancelled&&normPhone(bk.phone||'')===normPhone(b.phone||''));
-    if(phoneConflict)throw new Error('PHONE_TAKEN');
     bookings.push(b);
     transaction.set(DB,{
       bookings:JSON.stringify(bookings),
@@ -1224,7 +1226,6 @@ async function doBook(){
   if(!validName(name)){toast('الاسم يجب 3 أحرف على الأقل');return;}
   if(!validPhone(phone)){toast('رقم الهاتف غير صحيح');return;}
   if(!selSvcs.length||!selDateKey||!selSlot)return;
-  if(phoneBooked(phone)){toast('هذا الرقم عنده حجز مسبق!');return;}
   const btn=document.getElementById('bookBtn');
   btn.disabled=true;btn.textContent='⏳ جاري الحجز...';busy=true;
   // ملاحظة أداء: شلنا استدعاء load() المكرر اللي كان يصير هنا قبل الترانزاكشن —
@@ -1254,26 +1255,45 @@ async function doBook(){
     createdAt:Date.now(),bookedAt:new Date().toLocaleTimeString('ar-IQ'),
     reminded:false,cancelled:false,note:''
   };
+  // عرض تأكيد الحجز فوراً (تفاؤلي) بدون انتظار رد السيرفر — الزبون يشوف "تم الحجز" لحظياً
+  // والتحقق الفعلي من التعارض والكتابة بقاعدة البيانات يصيرون بالخلفية بنفس اللحظة
+  document.getElementById('s-name').textContent=name;
+  document.getElementById('s-svc').textContent=finalName;
+  document.getElementById('s-date').textContent=selDateLabel;
+  document.getElementById('s-slot').textContent=selSlot;
+  document.getElementById('s-phone').textContent=phone;
+  document.getElementById('s-price').textContent=fmtPrice(finalPrice);
+  document.getElementById('formView').classList.add('hidden');
+  document.getElementById('successView').classList.remove('hidden');
+  window.scrollTo({top:0,behavior:'smooth'});
+  // مؤشر "جاري التأكيد" يبين للزبون إنه الحجز لسا يتزامن مع السيرفر —
+  // مفيد بالذات إذا النت ضعيف، عشان ما يسكر الصفحة قبل ما يتأكد الحجز فعلياً
+  const syncEl=document.getElementById('syncStatus');
+  const syncTxt=document.getElementById('syncStatusText');
+  syncEl.style.display='flex';
+  syncTxt.textContent='جاري تأكيد الحجز مع السيرفر...';
+  // إذا تأخر التأكيد أكثر من الطبيعي (نت ضعيف)، نبلغ الزبون إنه ينتظر ولا يسكر الصفحة
+  const slowNoticeTimer=setTimeout(()=>{
+    syncTxt.textContent='النت شكله بطيء... لا تسكر الصفحة لحد ما يتأكد الحجز';
+  },4000);
   try{
     // الكتابة والتحقق النهائي يصيرون سوا بعملية ذرية وحدة مباشرة على السيرفر —
     // هذا يمنع التعارض حتى لو صار حجزين بنفس اللحظة أو نسخة المتصفح قديمة
     await bookWithTransaction(b,onlyFreeSvcs);
-    // إشعار ntfy فور الحجز — نرسله بالخلفية وما ننتظره، عشان الزبون يشوف تأكيد الحجز فوراً بلا تأخير
+    clearTimeout(slowNoticeTimer);
+    syncEl.style.display='none';
+    // إشعار ntfy فور الحجز — نرسله بالخلفية وما ننتظره
     fetch('https://ntfy.sh/sunshave-vip-2025?title='+encodeURIComponent('🔔 حجز جديد — Sun Shave')+'&priority=high&tags=scissors',{method:'POST',mode:'no-cors',body:`👤 ${b.name}\n✂️ ${b.service}\n🕐 ${b.slot}\n📅 ${b.day||b.dateKey}\n📞 ${b.phone}`}).catch(()=>{});
-
-    document.getElementById('s-name').textContent=name;
-    document.getElementById('s-svc').textContent=finalName;
-    document.getElementById('s-date').textContent=selDateLabel;
-    document.getElementById('s-slot').textContent=selSlot;
-    document.getElementById('s-phone').textContent=phone;
-    document.getElementById('s-price').textContent=fmtPrice(finalPrice);
-    document.getElementById('formView').classList.add('hidden');
-    document.getElementById('successView').classList.remove('hidden');
+    btn.disabled=false;updateBtn();
   }catch(e){
+    clearTimeout(slowNoticeTimer);
+    syncEl.style.display='none';
+    // فشل فعلي (نت مقطوع، تعارض بالوقت، إلخ) — نرجّع الفورم ونوضح السبب حتى لو الزبون لسا واقف بشاشة النجاح
+    document.getElementById('successView').classList.add('hidden');
+    document.getElementById('formView').classList.remove('hidden');
     btn.disabled=false;updateBtn();
     if(e&&e.message==='SLOT_TAKEN'){toast('هذا الوقت انحجز للتو من زبون ثاني، اختر وقت آخر');renderSlots();}
-    else if(e&&e.message==='PHONE_TAKEN'){toast('هذا الرقم عنده حجز مسبق!');}
-    else{toast('فشل الحجز، حاول مرة ثانية');}
+    else{toast('تعذر تأكيد الحجز — تأكد من النت وحاول مرة ثانية');}
   }
   busy=false;
 }
