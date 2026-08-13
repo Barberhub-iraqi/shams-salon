@@ -533,6 +533,8 @@ async function hashPin(p){const enc=new TextEncoder().encode(p);const buf=await 
 // getP و setP يشتغلان بعد تحميل Firebase — نستخدم window._fbReady
 async function getP(){
   try{
+    // نستخدم الطلب اللي بدأناه مسبقاً بالخلفية (وقت فتح الصفحة) بدل ما نبدأ طلب جديد من الصفر
+    if(window._pinPromise) return await window._pinPromise;
     if(window._fbGetPin) return await window._fbGetPin();
   }catch{}
   return await hashPin('1234');
@@ -549,7 +551,11 @@ function pp(d){if(locked()){const el=document.getElementById('lockout');el.textC
 function pd(){pe=pe.slice(0,-1);updDots();}
 function updDots(){for(let i=0;i<4;i++){const d=document.getElementById('d'+i);d.classList.toggle('on',i<pe.length);d.classList.remove('err');}}
 async function chkP(){if(locked()){pe='';updDots();return;}const h=await hashPin(pe);const stored=await getP();if(h===stored){localStorage.removeItem(F_KEY);document.getElementById('pinScreen').style.display='none';document.getElementById('loaderApp').style.display='flex';window._init&&window._init();}else{const f=(parseInt(localStorage.getItem(F_KEY)||'0'))+1;localStorage.setItem(F_KEY,f);if(f>=5){localStorage.setItem(L_KEY,Date.now()+30000);localStorage.removeItem(F_KEY);const el=document.getElementById('lockout');el.textContent='🔒 مقفل 30 ثانية';el.classList.add('show');}for(let i=0;i<4;i++)document.getElementById('d'+i).classList.add('err');document.getElementById('pinErr').classList.add('show');setTimeout(()=>{pe='';updDots();document.getElementById('pinErr').classList.remove('show');},700);}}
-function doLogout(){document.getElementById('mainApp').style.display='none';document.getElementById('pinScreen').style.display='flex';pe='';updDots();}
+function doLogout(){document.getElementById('mainApp').style.display='none';document.getElementById('pinScreen').style.display='flex';pe='';updDots();
+  // نجهز تحميل الرمز والبيانات مسبقاً من جديد عشان تكون الدخلة الجاية سريعة نفس الأولى
+  if(window._fbGetPin)window._pinPromise=window._fbGetPin();
+  if(typeof load==='function')window._dataPromise=load();
+}
 window.pp=pp;window.pd=pd;window.doLogout=doLogout;
 // دعم لوحة المفاتيح للـ PIN
 document.addEventListener('keydown',e=>{if(document.getElementById('pinScreen').style.display==='none')return;if(e.key>='0'&&e.key<='9')pp(e.key);else if(e.key==='Backspace')pd();});
@@ -613,6 +619,13 @@ let data={bookings:[],waitlist:[],disabledDays:[],blockedSlots:{},archivedBookin
 ]};
 let selDateKey='all',activeTab='bookings',activeSTab='week',lastSync=null;
 let shopBgBase64=null;
+
+// نبدأ تحميل رمز الدخول وبيانات المحل من فايربيس بالخلفية فور فتح الصفحة —
+// بالتوازي مع وقت كتابة الزبون للرمز السري على لوحة الأرقام، بدل ما ننتظر
+// ونبدأ التحميل بعد إدخال آخر رقم. هذا يخلي الشاشة تطلع فوراً تقريباً بعد إدخال الرمز
+// لأن التحميل يكون خلص أو شارف على الخلاص أصلاً بنفس وقت الكتابة.
+window._pinPromise=window._fbGetPin();
+window._dataPromise=load();
 
 function dk(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 function dl(d){return`${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]}`;}
@@ -784,9 +797,22 @@ async function cleanOld(){
     toRemove.forEach(b=>{if(!data.archivedBookings.find(a=>a.id===b.id))data.archivedBookings.push({...b,autoArchived:true,completedAt:b.completedAt||Date.now()});});
     data.bookings=data.bookings.filter(b=>!toRemove.find(r=>r.id===b.id));
     try{await saveArchive();}catch{}
+    // لازم نحذفهم فعلياً من وثيقة الحجوزات بالسيرفر مو بس محلياً — وإلا أي عملية حفظ جاية
+    // (إلغاء، ملاحظة، حجز يدوي...) بترجعهم من نسخة السيرفر القديمة، فيطلعون ويختفون بالتكرار
+    try{await save(toRemove.map(b=>b.id));}catch{}
   }
 }
-async function loadAndRender(){await load();render();}
+async function loadAndRender(){
+  // نفس الفكرة: إذا التحميل المسبق (اللي بدأ وقت ظهور شاشة الرمز) لسا شغال أو خلص، نستخدمه
+  // بدل قراءة ثانية من فايربيس من الصفر
+  if(window._dataPromise){
+    try{await window._dataPromise;}catch{}
+    window._dataPromise=null;
+  }else{
+    await load();
+  }
+  render();
+}
 function syncBar(ok){const s=document.getElementById('syncStatus');const l=document.getElementById('lastSync');if(lastSync)l.textContent='آخر تحديث: '+lastSync.toLocaleTimeString('ar-IQ',{hour:'2-digit',minute:'2-digit'});s.style.color=ok?'var(--green)':'#EF5350';s.textContent=ok?'متزامن ✓':'خطأ';}
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.style.display='block';clearTimeout(t._t);t._t=setTimeout(()=>t.style.display='none',3200);}
 function switchTab(t){activeTab=t;const n=['bookings','stats','archive','waitlist','store','settings'];document.querySelectorAll('.tab').forEach((el,i)=>el.classList.toggle('active',n[i]===t));document.querySelectorAll('.tc').forEach(el=>el.classList.remove('active'));document.getElementById('tc-'+t).classList.add('active');render();}
